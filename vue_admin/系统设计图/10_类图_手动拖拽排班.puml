@@ -1,0 +1,96 @@
+@startuml 手动拖拽排班类图
+
+title 手动拖拽排班（卡片拖拽+即时冲突校验）- 类图
+
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "接口层 (Interfaces)" {
+  interface DragScheduleService <<interface>> {
+    +startSession(deptId: Long): DragSession
+    +placeTimeSlot(sessionId: String, shift: Shift, slotId: Long): void
+    +placeDoctor(sessionId: String, date: Date, shift: Shift, doctorId: Long, locationId: Long?): DragResult
+    +removeDoctor(sessionId: String, date: Date, shift: Shift, doctorId: Long): void
+    +commit(sessionId: String): CommitResult
+  }
+
+  interface ConflictRule <<interface>> {
+    +check(context: DragContext): List<Conflict>
+  }
+}
+
+package "控制层 (Controllers)" {
+  class DragScheduleController <<controller>> {
+    +startSession(deptId: Long): ApiResponse
+    +dragTimeSlot(cmd: DragTimeSlotCmd): ApiResponse
+    +dragDoctor(cmd: DragDoctorCmd): ApiResponse
+    +removeDoctor(cmd: RemoveDoctorCmd): ApiResponse
+    +commit(sessionId: String): ApiResponse
+  }
+}
+
+package "应用服务层 (Services)" {
+  class DragScheduleServiceImpl implements DragScheduleService {
+    -sessionRepo: DragSessionRepository
+    -scheduleRepo: ScheduleRepository
+    -conflictRules: List<ConflictRule>
+    +startSession(deptId: Long): DragSession
+    +placeTimeSlot(sessionId: String, shift: Shift, slotId: Long): void
+    +placeDoctor(sessionId: String, date: Date, shift: Shift, doctorId: Long, locationId: Long?): DragResult
+    +removeDoctor(sessionId: String, date: Date, shift: Shift, doctorId: Long): void
+    +commit(sessionId: String): CommitResult
+  }
+
+  interface DragSessionRepository <<interface>> {
+    +save(session: DragSession): void
+    +findById(id: String): DragSession
+    +delete(id: String): void
+  }
+}
+
+package "实体层 (Entities)" {
+  class DragSession <<aggregate>> {
+    +id: String
+    +departmentId: Long
+    +createdAt: DateTime
+    +timeSlots: Map<Shift, List<Long>>
+    +draftSchedules: List<ScheduleDraft>
+  }
+
+  class ScheduleDraft <<entity>> {
+    +date: Date
+    +shift: Shift
+    +doctorId: Long
+    +locationId: Long?
+  }
+
+  class Conflict <<value object>> {
+    +type: ConflictType
+    +severity: Severity
+    +message: String
+    +date: Date
+    +shift: Shift
+    +doctorId: Long
+    +locationId: Long?
+  }
+
+  class DragResult <<value object>> {
+    +conflicts: List<Conflict>
+    +accepted: boolean
+  }
+
+  enum Shift { 上午; 下午 }
+  enum ConflictType { DoctorDouble; OfficeShared; SlotMismatch }
+  enum Severity { Critical; Warning }
+}
+
+' 关联
+DragScheduleController --> DragScheduleService
+DragScheduleServiceImpl ..> DragSessionRepository
+DragScheduleServiceImpl ..> ScheduleRepository
+DragScheduleServiceImpl ..> ConflictRule
+DragSessionRepository ..> DragSession
+
+@enduml
+
+

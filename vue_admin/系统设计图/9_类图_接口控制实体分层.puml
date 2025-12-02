@@ -1,0 +1,185 @@
+@startuml 分层类图（接口类/控制类/实体类）
+
+title 分层类图（接口类 / 控制类 / 实体类）
+
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam stereotypeFontColor #666
+skinparam stereotypeFontStyle italic
+skinparam class {
+  BackgroundColor White
+}
+
+package "接口层 (Interfaces)" <<Frame>> {
+  interface ScheduleRepository <<interface>> {
+    +findById(id: Long): Schedule
+    +findByDoctorAndDate(doctorId: Long, date: Date): List<Schedule>
+    +save(schedule: Schedule): void
+    +saveAll(schedules: List<Schedule>): void
+  }
+
+  interface DoctorRepository <<interface>> {
+    +findById(id: Long): Doctor
+    +findActive(): List<Doctor>
+  }
+
+  interface TimeSlotRepository <<interface>> {
+    +findAll(): List<TimeSlot>
+    +findById(id: Long): TimeSlot
+  }
+
+  interface LocationRepository <<interface>> {
+    +findAvailable(): List<Location>
+    +findById(id: Long): Location
+  }
+
+  interface ConflictDetector <<interface>> {
+    +detectAll(schedules: List<Schedule>): ConflictReport
+  }
+}
+
+package "控制层 (Controllers)" <<Node>> {
+  class ScheduleController <<controller>> {
+    +create(dto: CreateScheduleDTO): ApiResponse
+    +batchImport(file: File): ApiResponse
+    +update(id: Long, dto: UpdateScheduleDTO): ApiResponse
+    +cancel(id: Long): ApiResponse
+    +list(query: ScheduleQuery): Page<ScheduleVO>
+  }
+
+  class LeaveController <<controller>> {
+    +create(dto: LeaveRequestDTO): ApiResponse
+    +approve(id: Long): ApiResponse
+    +reject(id: Long): ApiResponse
+  }
+
+  class ConflictController <<controller>> {
+    +detect(query: ConflictQuery): ConflictReport
+  }
+}
+
+package "应用服务层 (Services)" <<Folder>> {
+  class ScheduleService {
+    -scheduleRepo: ScheduleRepository
+    -doctorRepo: DoctorRepository
+    -slotRepo: TimeSlotRepository
+    -locationRepo: LocationRepository
+    -conflictDetector: ConflictDetector
+    +create(dto: CreateScheduleDTO): Schedule
+    +batchImport(rows: List<ImportRow>): BatchResult
+    +update(id: Long, dto: UpdateScheduleDTO): Schedule
+    +cancel(id: Long): void
+    +list(query: ScheduleQuery): Page<Schedule>
+  }
+
+  class LeaveService {
+    -leaveRepo: LeaveRequestRepository
+    -scheduleRepo: ScheduleRepository
+    +create(dto: LeaveRequestDTO): LeaveRequest
+    +approve(id: Long, adminId: Long): ApproveResult
+    +reject(id: Long, adminId: Long): void
+  }
+
+  interface LeaveRequestRepository <<interface>> {
+    +save(leave: LeaveRequest): void
+    +findPending(): List<LeaveRequest>
+    +findById(id: Long): LeaveRequest
+  }
+}
+
+package "实体层 (Entities)" <<Database>> {
+  class Schedule <<entity>> {
+    +id: Long
+    +doctorId: Long
+    +scheduleDate: Date
+    +slotId: Long
+    +locationId: Long
+    +totalSlots: int
+    +bookedSlots: int
+    +fee: Decimal
+    +status: ScheduleStatus
+  }
+
+  class Doctor <<entity>> {
+    +id: Long
+    +fullName: String
+    +departmentId: Long
+    +title: String
+    +status: DoctorStatus
+  }
+
+  class Department <<entity>> {
+    +id: Long
+    +parentId: Long
+    +name: String
+    +code: String
+  }
+
+  class TimeSlot <<entity>> {
+    +id: Long
+    +slotName: String
+    +startTime: Time
+    +endTime: Time
+    +period: Period
+  }
+
+  class Location <<entity>> {
+    +id: Long
+    +name: String
+    +building: String
+    +floor: String
+    +roomNumber: String
+    +status: LocationStatus
+  }
+
+  class LeaveRequest <<entity>> {
+    +id: Long
+    +doctorId: Long
+    +startDate: Date
+    +endDate: Date
+    +type: LeaveType
+    +status: LeaveStatus
+    +approvedBy: Long
+  }
+
+  class ConflictReport <<value object>> {
+    +total: int
+    +critical: int
+    +warning: int
+    +items: List<ConflictItem>
+  }
+
+  class ConflictItem <<value object>> {
+    +type: ConflictType
+    +severity: Severity
+    +date: Date
+    +shift: String
+    +doctorId: Long
+    +locationId: Long
+    +message: String
+  }
+}
+
+' 关联关系
+ScheduleController --> ScheduleService
+LeaveController --> LeaveService
+ConflictController --> ScheduleService : uses detect
+
+ScheduleService ..> ScheduleRepository
+ScheduleService ..> DoctorRepository
+ScheduleService ..> TimeSlotRepository
+ScheduleService ..> LocationRepository
+ScheduleService ..> ConflictDetector
+
+LeaveService ..> LeaveRequestRepository
+LeaveService ..> ScheduleRepository
+
+' 实体间关系
+Schedule --> Doctor : doctorId
+Schedule --> TimeSlot : slotId
+Schedule --> Location : locationId
+Doctor --> Department : departmentId
+
+@enduml
+
+

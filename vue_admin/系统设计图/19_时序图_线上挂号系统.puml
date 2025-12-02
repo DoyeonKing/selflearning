@@ -1,0 +1,168 @@
+@startuml
+!theme plain
+title 线上挂号系统时序图
+
+actor "患者" as Patient
+participant "<<interface>>\n挂号界面" as RegistrationUI
+participant "<<interface>>\n支付接口" as PaymentInterface
+participant "<<controller>>\n挂号控制器" as RegistrationController
+participant "<<controller>>\n支付控制器" as PaymentController
+participant "<<controller>>\n通知控制器" as NotificationController
+participant "<<controller>>\n可用性控制器" as AvailabilityController
+participant ":患者数据" as PatientData
+participant ":科室数据" as DepartmentData
+participant ":时间段数据" as TimeSlotData
+participant ":号别数据" as RegistrationTypeData
+participant ":挂号数据" as RegistrationData
+participant ":候补数据" as WaitlistData
+participant ":支付数据" as PaymentData
+
+== 1. 选择科室 ==
+Patient -> RegistrationUI: 选择科室
+activate RegistrationUI
+RegistrationUI -> RegistrationController: selectDepartment(departmentId)
+activate RegistrationController
+RegistrationController -> DepartmentData: 获取科室信息
+DepartmentData ->> RegistrationController: 返回科室数据
+RegistrationController ->> RegistrationUI: 科室信息
+deactivate RegistrationController
+RegistrationUI ->> Patient: 显示科室信息
+deactivate RegistrationUI
+
+== 2. 选择时间段 ==
+Patient -> RegistrationUI: 选择时间段
+activate RegistrationUI
+RegistrationUI -> RegistrationController: selectTimeSlot(timeSlotId)
+activate RegistrationController
+RegistrationController -> TimeSlotData: 获取时间段信息
+TimeSlotData ->> RegistrationController: 返回时间段数据
+RegistrationController ->> RegistrationUI: 时间段信息
+deactivate RegistrationController
+RegistrationUI ->> Patient: 显示时间段信息
+deactivate RegistrationUI
+
+== 3. 选择号别 ==
+Patient -> RegistrationUI: 选择号别
+activate RegistrationUI
+RegistrationUI -> RegistrationController: selectRegistrationType(typeId)
+activate RegistrationController
+RegistrationController -> RegistrationTypeData: 获取号别信息
+RegistrationTypeData ->> RegistrationController: 返回号别数据
+RegistrationController ->> RegistrationUI: 号别信息
+deactivate RegistrationController
+RegistrationUI ->> Patient: 显示号别信息
+deactivate RegistrationUI
+
+== 4. 检查号别信息 ==
+RegistrationUI -> AvailabilityController: 检查对应号别信息
+activate AvailabilityController
+AvailabilityController -> RegistrationTypeData: 检查号别可用性
+RegistrationTypeData ->> AvailabilityController: 返回可用性数据
+AvailabilityController ->> RegistrationUI: 号别可用性信息
+deactivate AvailabilityController
+RegistrationUI ->> Patient: 显示号别信息
+
+== 5. 判断号别余量 ==
+RegistrationUI -> AvailabilityController: 检查号别余量
+activate AvailabilityController
+AvailabilityController -> AvailabilityController: 判断是否有余量
+
+alt 选择的号别有余量
+    AvailabilityController ->> RegistrationUI: 有余量
+    deactivate AvailabilityController
+    
+    == 5a. 生成预约挂号申请 ==
+    RegistrationUI -> RegistrationController: 生成预约挂号申请
+    activate RegistrationController
+    RegistrationController -> RegistrationData: 创建挂号记录
+    RegistrationData ->> RegistrationController: 挂号记录创建成功
+    RegistrationController ->> RegistrationUI: 挂号申请生成成功
+    deactivate RegistrationController
+    
+    == 5b. 确认就诊信息 ==
+    Patient -> RegistrationUI: 确认就诊信息
+    activate RegistrationUI
+    RegistrationUI -> PatientData: 获取患者信息
+    PatientData ->> RegistrationUI: 返回患者数据
+    RegistrationUI ->> Patient: 显示确认信息
+    deactivate RegistrationUI
+    
+    == 5c. 支付挂号费用 ==
+    Patient -> RegistrationUI: 支付挂号费用
+    activate RegistrationUI
+    RegistrationUI -> PaymentController: 处理支付
+    activate PaymentController
+    PaymentController -> PaymentInterface: 发起支付请求
+    PaymentInterface ->> PaymentController: 支付处理中
+    PaymentController -> PaymentData: 创建支付记录
+    PaymentData ->> PaymentController: 支付记录创建成功
+    PaymentController ->> RegistrationUI: 支付处理完成
+    deactivate PaymentController
+    RegistrationUI ->> Patient: 显示支付结果
+    deactivate RegistrationUI
+    
+    == 5d. 显示挂号列表 ==
+    RegistrationUI -> RegistrationController: 显示挂号列表
+    activate RegistrationController
+    RegistrationController -> RegistrationData: 获取挂号列表
+    RegistrationData ->> RegistrationController: 返回挂号数据
+    RegistrationController ->> RegistrationUI: 挂号列表
+    deactivate RegistrationController
+    RegistrationUI ->> Patient: 显示挂号成功
+
+else 选择的号别无余量
+    AvailabilityController ->> RegistrationUI: 无余量
+    deactivate AvailabilityController
+    
+    == 5e. 生成候补申请 ==
+    RegistrationUI -> RegistrationController: 生成候补申请
+    activate RegistrationController
+    RegistrationController -> WaitlistData: 创建候补记录
+    WaitlistData ->> RegistrationController: 候补记录创建成功
+    RegistrationController ->> RegistrationUI: 候补申请生成成功
+    deactivate RegistrationController
+    
+    == 5f. 确认候补信息 ==
+    Patient -> RegistrationUI: 确认候补信息
+    activate RegistrationUI
+    RegistrationUI -> PatientData: 获取患者信息
+    PatientData ->> RegistrationUI: 返回患者数据
+    RegistrationUI ->> Patient: 显示候补确认信息
+    deactivate RegistrationUI
+    
+    == 5g. 生成候补列表 ==
+    RegistrationUI -> RegistrationController: 生成候补列表
+    activate RegistrationController
+    RegistrationController -> WaitlistData: 处理候补队列
+    WaitlistData ->> RegistrationController: 候补队列处理完成
+    RegistrationController ->> RegistrationUI: 候补列表生成成功
+    deactivate RegistrationController
+    RegistrationUI ->> Patient: 显示候补成功
+    
+    == 5h. 判断候补结果 ==
+    RegistrationController -> RegistrationController: 判断候补成功
+    
+    alt 候补成功
+        RegistrationController -> NotificationController: 发送候补成功通知
+        activate NotificationController
+        NotificationController -> NotificationController: 发送"候补成功"短信
+        NotificationController ->> RegistrationController: 通知发送成功
+        deactivate NotificationController
+        RegistrationController ->> Patient: 候补成功通知
+    else 候补失败
+        RegistrationController ->> Patient: 候补失败通知
+    end
+end
+
+note right of AvailabilityController
+① 自我调用——对象可以调用它自己的方法
+end note
+
+note right of RegistrationController
+② 框架——使用框架来表示需要循环的所有消息,或用来表示一条或多条消息是可选的步骤
+end note
+
+@enduml
+
+
+

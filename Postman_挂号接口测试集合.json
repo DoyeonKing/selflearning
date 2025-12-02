@@ -1,0 +1,213 @@
+{
+	"info": {
+		"_postman_id": "appointment-api-tests",
+		"name": "挂号系统接口测试",
+		"description": "医院挂号系统的完整接口测试集合",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. 创建预约（挂号）",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"patientId\": 1,\n  \"scheduleId\": 1,\n  \"appointmentNumber\": 1\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/appointments",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"appointments"
+					]
+				},
+				"description": "创建新的预约记录（挂号）"
+			},
+			"response": []
+		},
+		{
+			"name": "2. 获取患者所有预约",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/api/appointments/patient/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"appointments",
+						"patient",
+						"1"
+					]
+				},
+				"description": "获取指定患者的所有预约记录"
+			},
+			"response": []
+		},
+		{
+			"name": "3. 获取即将就诊的预约",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/api/appointments/patient/1/upcoming",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"appointments",
+						"patient",
+						"1",
+						"upcoming"
+					]
+				},
+				"description": "获取患者即将就诊的预约"
+			},
+			"response": []
+		},
+		{
+			"name": "4. 获取预约详情",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/api/appointments/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"appointments",
+						"1"
+					]
+				},
+				"description": "获取指定预约的详细信息"
+			},
+			"response": []
+		},
+		{
+			"name": "5. 支付挂号费用",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"paymentStatus\": \"PAID\",\n  \"paymentMethod\": \"微信支付\",\n  \"transactionId\": \"WX123456789\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/appointments/1/pay",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"appointments",
+						"1",
+						"pay"
+					]
+				},
+				"description": "支付指定预约的挂号费用"
+			},
+			"response": []
+		},
+		{
+			"name": "6. 更新预约信息",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"appointmentNumber\": 2,\n  \"status\": \"CONFIRMED\",\n  \"paymentStatus\": \"PAID\",\n  \"paymentMethod\": \"支付宝\",\n  \"transactionId\": \"ALI123456789\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/appointments/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"appointments",
+						"1"
+					]
+				},
+				"description": "更新指定预约的信息"
+			},
+			"response": []
+		},
+		{
+			"name": "7. 取消预约",
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/api/appointments/1/cancel",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"appointments",
+						"1",
+						"cancel"
+					]
+				},
+				"description": "取消指定的预约"
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "patientId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "appointmentId",
+			"value": "1",
+			"type": "string"
+		}
+	]
+}
+

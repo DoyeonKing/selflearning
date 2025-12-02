@@ -1,0 +1,372 @@
+@startuml 患者挂号系统类图
+
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "服务层 (Service Layer)" as ServiceLayer {
+    interface UserService {
+        + createUser(request: UserCreateRequest): UserResponse
+        + importUsers(requests: List<UserCreateRequest>): UserImportResponse
+        + searchDoctors(id: String, name: String, departmentId: Integer, page: Integer, pageSize: Integer): PageResponse<UserResponse>
+        + searchPatients(id: String, name: String, page: Integer, pageSize: Integer): PageResponse<UserResponse>
+        + updateUser(patientId: Long, doctorId: Integer, request: UserUpdateRequest): UserResponse
+        + getMedicalHistories(page: Integer, pageSize: Integer): PageResponse<MedicalHistoryResponse>
+        + updateMedicalHistory(id: Long, request: MedicalHistoryUpdateRequest): MedicalHistoryResponse
+    }
+    
+    interface PatientService {
+        + login(request: LoginRequest): LoginResponse
+        + verify(request: VerifyRequest): LoginResponse
+        + activate(request: ActivateRequest): LoginResponse
+        + getPatientInfo(patientId: Integer): Patient
+        + updatePatientInfo(patientId: Integer, info: PatientInfo): void
+    }
+    
+    interface DepartmentService {
+        + createDepartment(dto: DepartmentDTO): DepartmentResponseDTO
+        + updateDepartmentDescription(dto: DepartmentDTO): DepartmentResponseDTO
+        + getAllDepartments(): List<DepartmentResponseDTO>
+        + getDepartmentTree(): List<DepartmentTreeDTO>
+        + getDepartmentDoctors(departmentId: Integer): List<DoctorDataDTO>
+    }
+    
+    interface ScheduleService {
+        + findAllSchedules(): List<ScheduleResponse>
+        + findScheduleById(id: Integer): ScheduleResponse
+        + createSchedule(request: ScheduleCreateRequest): ScheduleResponse
+        + updateSchedule(id: Integer, request: ScheduleUpdateRequest): ScheduleResponse
+        + deleteSchedule(id: Integer): void
+    }
+    
+    interface AppointmentService {
+        + createAppointment(request: AppointmentCreateRequest): AppointmentResponse
+        + getAppointmentById(id: Integer): AppointmentResponse
+        + updateAppointmentStatus(id: Integer, status: String): AppointmentResponse
+        + cancelAppointment(id: Integer): void
+    }
+    
+    interface WaitlistService {
+        + addToWaitlist(request: WaitlistCreateRequest): WaitlistResponse
+        + getWaitlistByPatient(patientId: Integer): List<WaitlistResponse>
+        + processWaitlistNotification(waitlistId: Integer): Boolean
+    }
+    
+    interface TimeSlotService {
+        + createTimeSlot(request: TimeSlotCreateRequest): TimeSlotResponse
+        + updateTimeSlot(id: Integer, request: TimeSlotUpdateRequest): TimeSlotResponse
+        + deleteTimeSlot(id: Integer): void
+        + getAllTimeSlots(): List<TimeSlotResponse>
+    }
+    
+    interface ParentDepartmentService {
+        + createParentDepartment(request: ParentDepartmentCreateRequest): ParentDepartmentResponse
+        + updateParentDepartment(id: Integer, request: ParentDepartmentUpdateRequest): ParentDepartmentResponse
+        + deleteParentDepartment(id: Integer): void
+        + getAllParentDepartments(): List<ParentDepartmentResponse>
+        + getParentDepartmentById(id: Integer): ParentDepartmentResponse
+    }
+    
+    interface DoctorService {
+        + login(request: LoginRequest): LoginResponse
+        + verify(request: VerifyRequest): LoginResponse
+        + activate(request: ActivateRequest): LoginResponse
+        + getDoctorInfo(doctorId: Integer): Doctor
+        + updateDoctorInfo(doctorId: Integer, info: DoctorInfo): void
+        + getDoctorSchedules(doctorId: Integer): List<ScheduleResponse>
+    }
+}
+
+package "控制层 (Controller Layer)" as ControllerLayer {
+    class UserController {
+        - userService: UserService
+        - excelUserParser: ExcelUserParser
+        + createUser(request: UserCreateRequest): ResponseEntity<UserResponse>
+        + importUsers(file: MultipartFile): ResponseEntity<UserImportResponse>
+        + searchDoctors(id: String, name: String, departmentId: Integer, page: Integer, pageSize: Integer): ResponseEntity<PageResponse<UserResponse>>
+        + searchPatients(id: String, name: String, page: Integer, pageSize: Integer): ResponseEntity<PageResponse<UserResponse>>
+        + updateUser(patientId: Long, doctorId: Integer, request: UserUpdateRequest): ResponseEntity<UserResponse>
+    }
+    
+    class AuthController {
+        - patientService: PatientService
+        - adminService: AdminService
+        + patientLogin(request: LoginRequest): ResponseEntity<LoginResponse>
+        + patientVerify(request: VerifyRequest): ResponseEntity<LoginResponse>
+        + patientActivate(request: ActivateRequest): ResponseEntity<LoginResponse>
+    }
+    
+    class DepartmentController {
+        - departmentService: DepartmentService
+        - parentDepartmentService: ParentDepartmentService
+        + createDepartment(dto: DepartmentDTO): ResponseEntity<?>
+        + updateDepartmentDescription(dto: DepartmentDTO): ResponseEntity<?>
+        + getAllDepartments(): ResponseEntity<List<DepartmentResponseDTO>>
+        + getDepartmentTree(): ResponseEntity<List<DepartmentTreeDTO>>
+        + getDepartmentDoctors(departmentId: Integer): ResponseEntity<List<DoctorDataDTO>>
+    }
+    
+    class DoctorAuthController {
+        - doctorService: DoctorService
+        + doctorLogin(request: LoginRequest): ResponseEntity<LoginResponse>
+    }
+    
+    class DoctorController {
+        - doctorService: DoctorService
+        + getDoctorInfo(doctorId: Integer): ResponseEntity<DoctorResponse>
+        + updateDoctorInfo(doctorId: Integer, request: DoctorUpdateRequest): ResponseEntity<DoctorResponse>
+        + getDoctorSchedules(doctorId: Integer): ResponseEntity<List<ScheduleResponse>>
+        + getAllDoctors(): ResponseEntity<List<DoctorResponse>>
+    }
+    
+    class ParentDepartmentController {
+        - parentDepartmentService: ParentDepartmentService
+        + createParentDepartment(request: ParentDepartmentCreateRequest): ResponseEntity<ParentDepartmentResponse>
+        + getAllParentDepartments(): ResponseEntity<List<ParentDepartmentResponse>>
+        + updateParentDepartment(id: Integer, request: ParentDepartmentUpdateRequest): ResponseEntity<ParentDepartmentResponse>
+        + deleteParentDepartment(id: Integer): ResponseEntity<Void>
+    }
+    
+    class ScheduleController {
+        - scheduleService: ScheduleService
+        + createSchedule(request: ScheduleCreateRequest): ResponseEntity<ScheduleResponse>
+        + updateSchedule(id: Integer, request: ScheduleUpdateRequest): ResponseEntity<ScheduleResponse>
+        + deleteSchedule(id: Integer): ResponseEntity<Void>
+        + getScheduleById(id: Integer): ResponseEntity<ScheduleResponse>
+        + getAllSchedules(): ResponseEntity<List<ScheduleResponse>>
+    }
+    
+    class AppointmentController {
+        - appointmentService: AppointmentService
+        + createAppointment(request: AppointmentCreateRequest): ResponseEntity<AppointmentResponse>
+        + getAppointmentById(id: Integer): ResponseEntity<AppointmentResponse>
+        + updateAppointmentStatus(id: Integer, status: String): ResponseEntity<AppointmentResponse>
+        + cancelAppointment(id: Integer): ResponseEntity<Void>
+    }
+    
+    class WaitlistController {
+        - waitlistService: WaitlistService
+        + addToWaitlist(request: WaitlistCreateRequest): ResponseEntity<WaitlistResponse>
+        + getWaitlistByPatient(patientId: Integer): ResponseEntity<List<WaitlistResponse>>
+        + processWaitlistNotification(waitlistId: Integer): ResponseEntity<Boolean>
+    }
+    
+    class TimeSlotController {
+        - timeSlotService: TimeSlotService
+        + createTimeSlot(request: TimeSlotCreateRequest): ResponseEntity<TimeSlotResponse>
+        + updateTimeSlot(id: Integer, request: TimeSlotUpdateRequest): ResponseEntity<TimeSlotResponse>
+        + deleteTimeSlot(id: Integer): ResponseEntity<Void>
+        + getAllTimeSlots(): ResponseEntity<List<TimeSlotResponse>>
+    }
+}
+
+package "实体层 (Entity Layer)" as EntityLayer {
+    class Patient {
+        - patientId: Integer
+        - identifier: String
+        - patientType: String
+        - passwordHash: String
+        - fullName: String
+        - phoneNumber: String
+        - status: String
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getPatientInfo(): PatientInfo
+        + updateInfo(info: PatientInfo): void
+        + validateInfo(): Boolean
+    }
+    
+    class Doctor {
+        - doctorId: Integer
+        - departmentId: Integer
+        - identifier: String
+        - passwordHash: String
+        - fullName: String
+        - idCardNumber: String
+        - phoneNumber: String
+        - title: String
+        - specialty: String
+        - bio: String
+        - photoUrl: String
+        - status: String
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+    }
+    
+    class ParentDepartment {
+        - parentDepartmentId: Integer
+        - name: String
+        - description: String
+    }
+    
+    class Department {
+        - departmentId: Integer
+        - parentId: Integer
+        - name: String
+        - description: String
+        + getDepartmentInfo(): DepartmentInfo
+        + getSubDepartments(): List<Department>
+    }
+    
+    class TimeSlot {
+        - slotId: Integer
+        - slotName: String
+        - startTime: Time
+        - endTime: Time
+        + getTimeSlotInfo(): TimeSlotInfo
+        + checkAvailability(): Boolean
+    }
+    
+    class Location {
+        - locationId: Integer
+        - locationName: String
+        - departmentId: Integer
+        - floorLevel: Integer
+        - building: String
+        - roomNumber: String
+        - capacity: Integer
+        - mapNodeId: Integer
+    }
+    
+    class Schedule {
+        - scheduleId: Integer
+        - doctorId: Integer
+        - scheduleDate: Date
+        - slotId: Integer
+        - locationId: Integer
+        - totalSlots: Integer
+        - bookedSlots: Integer
+        - fee: BigDecimal
+        - status: String
+        - remarks: String
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getScheduleInfo(): ScheduleInfo
+        + checkAvailability(): Boolean
+        + updateAvailability(count: Integer): void
+    }
+    
+    class Appointment {
+        - appointmentId: Integer
+        - patientId: Integer
+        - scheduleId: Integer
+        - appointmentNumber: Integer
+        - status: String
+        - paymentStatus: String
+        - paymentMethod: String
+        - transactionId: String
+        - checkInTime: DateTime
+        - createdAt: Timestamp
+        + getAppointmentInfo(): AppointmentInfo
+        + updateStatus(status: String): void
+        + cancel(): Boolean
+    }
+    
+    class Waitlist {
+        - waitlistId: Integer
+        - patientId: Integer
+        - scheduleId: Integer
+        - status: String
+        - notificationSentAt: DateTime
+        - createdAt: Timestamp
+        + getWaitlistInfo(): WaitlistInfo
+        + updateStatus(status: String): void
+        + promoteToAppointment(): Appointment
+    }
+    
+    class Notification {
+        - notificationId: Long
+        - userId: Integer
+        - userType: String
+        - type: String
+        - title: String
+        - content: String
+        - relatedEntity: String
+        - relatedId: Integer
+        - status: String
+        - priority: String
+        - sentAt: Timestamp
+        - readAt: DateTime
+        + getNotificationInfo(): NotificationInfo
+        + markAsRead(): void
+    }
+}
+
+' 包的布局 - 三行一列
+ServiceLayer -down-> ControllerLayer
+ControllerLayer -down-> EntityLayer
+
+' 控制层到服务层的依赖关系
+UserController ..> UserService : uses
+AuthController ..> PatientService : uses
+AuthController ..> AdminService : uses
+DepartmentController ..> DepartmentService : uses
+DepartmentController ..> ParentDepartmentService : uses
+DoctorAuthController ..> DoctorService : uses
+DoctorController ..> DoctorService : uses
+ParentDepartmentController ..> ParentDepartmentService : uses
+ScheduleController ..> ScheduleService : uses
+AppointmentController ..> AppointmentService : uses
+WaitlistController ..> WaitlistService : uses
+TimeSlotController ..> TimeSlotService : uses
+
+' 服务层到实体层的关系
+ScheduleService --> Schedule : "manages"
+ScheduleService --> Doctor : "queries"
+ScheduleService --> Department : "queries"
+ScheduleService --> TimeSlot : "queries"
+ScheduleService --> Location : "queries"
+
+AppointmentService --> Appointment : "manages"
+AppointmentService --> Patient : "queries"
+AppointmentService --> Schedule : "queries"
+
+WaitlistService --> Waitlist : "manages"
+WaitlistService --> Patient : "queries"
+WaitlistService --> Schedule : "queries"
+
+TimeSlotService --> TimeSlot : "manages"
+
+UserService --> Patient : "manages"
+UserService --> Doctor : "manages"
+UserService --> Admin : "manages"
+
+PatientService --> Patient : "manages"
+
+DepartmentService --> Department : "manages"
+DepartmentService --> ParentDepartment : "queries"
+
+ParentDepartmentService --> ParentDepartment : "manages"
+
+DoctorService --> Doctor : "manages"
+DoctorService --> Schedule : "queries"
+
+' 控制层到实体层的关系
+UserController --> Patient : "manages"
+UserController --> Doctor : "manages"
+AuthController --> Patient : "authenticates"
+DepartmentController --> Department : "manages"
+DepartmentController --> ParentDepartment : "manages"
+DoctorAuthController --> Doctor : "authenticates"
+DoctorController --> Doctor : "manages"
+ParentDepartmentController --> ParentDepartment : "manages"
+ScheduleController --> Schedule : "manages"
+AppointmentController --> Appointment : "manages"
+WaitlistController --> Waitlist : "manages"
+TimeSlotController --> TimeSlot : "manages"
+
+' 实体层内部关系
+Appointment ||--|| Patient : "belongs to"
+Appointment ||--|| Schedule : "books"
+Waitlist ||--|| Patient : "belongs to"
+Waitlist ||--|| Schedule : "waits for"
+Schedule ||--|| Doctor : "assigned to"
+Schedule ||--|| Department : "belongs to"
+Schedule ||--|| TimeSlot : "uses"
+Schedule ||--|| Location : "located at"
+Department ||--|| ParentDepartment : "belongs to"
+Department ||--o{ Department : "parent-child"
+Location ||--|| Department : "belongs to"
+Notification ||--|| Patient : "notifies"
+
+@enduml

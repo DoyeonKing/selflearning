@@ -1,0 +1,155 @@
+@startuml 医生请假流程时序图
+
+title 场景四：医生请假与排班自动取消 - 时序图
+
+actor 医生 as Doctor
+actor 管理员 as Admin
+participant "前端界面" as Frontend
+participant "后端API" as Backend
+participant "消息通知服务" as NotificationService
+database "leave_requests表" as LeaveDB
+database "schedules表" as SchedulesDB
+database "appointments表" as AppointmentsDB
+database "patients表" as PatientsDB
+
+== 医生提交请假申请 ==
+Doctor -> Frontend : 打开请假申请页面
+activate Frontend
+Frontend --> Doctor : 显示请假申请表单
+deactivate Frontend
+
+Doctor -> Frontend : 填写请假信息\n开始日期: 2025-11-15\n结束日期: 2025-11-17\n请假类型: 病假\n请假原因: 身体不适
+Doctor -> Frontend : 点击"提交申请"
+
+Frontend -> Backend : POST /api/leave-requests/create\n{\n  doctor_id: 5,\n  start_date: "2025-11-15",\n  end_date: "2025-11-17",\n  leave_type: "sick_leave",\n  reason: "身体不适"\n}
+activate Frontend
+activate Backend
+
+Backend -> Backend : 验证请假日期有效性
+
+Backend -> LeaveDB : INSERT INTO leave_requests\n(doctor_id, start_date, end_date,\nleave_type, reason, status,\ncreated_at)\nVALUES (5, '2025-11-15', '2025-11-17',\n'sick_leave', '身体不适', 'pending',\nNOW())
+activate LeaveDB
+LeaveDB --> Backend : 插入成功\nleave_id=2001
+deactivate LeaveDB
+
+Backend -> NotificationService : 发送通知给管理员\n"医生张三提交了请假申请"
+activate NotificationService
+NotificationService --> Backend : 通知已发送
+deactivate NotificationService
+
+Backend --> Frontend : 返回成功\n{\n  success: true,\n  leave_id: 2001,\n  message: "请假申请已提交，等待审批"\n}
+deactivate Backend
+
+Frontend --> Doctor : 显示提交成功\n申请状态：待审批
+deactivate Frontend
+
+== 管理员审批请假 ==
+Admin -> Frontend : 打开待审批列表
+activate Frontend
+
+Frontend -> Backend : GET /api/leave-requests/pending
+activate Backend
+Backend -> LeaveDB : SELECT * FROM leave_requests\nWHERE status='pending'\nORDER BY created_at DESC
+activate LeaveDB
+LeaveDB --> Backend : 返回待审批列表
+deactivate LeaveDB
+Backend --> Frontend : 返回请假申请列表
+deactivate Backend
+
+Frontend --> Admin : 显示待审批申请\n包含医生信息、请假时间、原因等
+deactivate Frontend
+
+Admin -> Frontend : 选择申请(leave_id=2001)
+Admin -> Frontend : 点击"批准"按钮
+
+== 检查受影响的排班 ==
+Frontend -> Backend : POST /api/leave-requests/approve\n{\n  leave_id: 2001,\n  approved_by: 1\n}
+activate Frontend
+activate Backend
+
+Backend -> SchedulesDB : 查找冲突的排班\nSELECT * FROM schedules\nWHERE doctor_id = 5\n  AND schedule_date BETWEEN '2025-11-15' AND '2025-11-17'\n  AND status = 'available'
+activate SchedulesDB
+SchedulesDB --> Backend : 返回冲突排班列表\n[\n  {schedule_id: 1001, date: '2025-11-15', ...},\n  {schedule_id: 1002, date: '2025-11-16', ...},\n  {schedule_id: 1003, date: '2025-11-17', ...}\n]
+deactivate SchedulesDB
+
+alt 存在冲突的排班
+    Backend -> Backend : 初始化受影响患者列表
+    
+    loop 遍历每个冲突排班
+        Backend -> AppointmentsDB : 查询该排班的预约记录\nSELECT * FROM appointments\nWHERE schedule_id = 1001\n  AND status IN ('confirmed', 'paid')
+        activate AppointmentsDB
+        AppointmentsDB --> Backend : 返回预约记录
+        deactivate AppointmentsDB
+        
+        alt 该排班有患者预约
+            Backend -> AppointmentsDB : 更新预约状态\nUPDATE appointments\nSET status = 'cancelled_by_doctor',\n    refund_status = 'pending'\nWHERE schedule_id = 1001
+            activate AppointmentsDB
+            AppointmentsDB --> Backend : 更新成功
+            deactivate AppointmentsDB
+            
+            Backend -> PatientsDB : 获取患者联系方式
+            activate PatientsDB
+            PatientsDB --> Backend : 返回患者信息
+            deactivate PatientsDB
+            
+            Backend -> NotificationService : 发送短信/通知给患者\n"您预约的张医生门诊已取消\n原因：医生请假\n挂号费将原路退回"
+            activate NotificationService
+            NotificationService --> Backend : 通知已发送
+            deactivate NotificationService
+            
+            Backend -> Backend : 记录需要退款的预约
+        end
+        
+        Backend -> SchedulesDB : 取消排班\nUPDATE schedules\nSET status = 'cancelled',\n    cancellation_reason = 'doctor_leave',\n    cancelled_at = NOW()\nWHERE schedule_id = 1001
+        activate SchedulesDB
+        SchedulesDB --> Backend : 更新成功
+        deactivate SchedulesDB
+    end
+end
+
+== 批准请假申请 ==
+Backend -> LeaveDB : 更新请假状态\nUPDATE leave_requests\nSET status = 'approved',\n    approved_by = 1,\n    approved_at = NOW()\nWHERE leave_id = 2001
+activate LeaveDB
+LeaveDB --> Backend : 更新成功
+deactivate LeaveDB
+
+Backend -> NotificationService : 发送通知给医生\n"您的请假申请已批准"
+activate NotificationService
+NotificationService --> Backend : 通知已发送
+deactivate NotificationService
+
+Backend -> Backend : 记录操作日志\n包括：\n- 批准的请假申请\n- 取消的排班数量\n- 受影响的患者数量\n- 退款金额统计
+
+Backend --> Frontend : 返回处理结果\n{\n  success: true,\n  message: "请假已批准",\n  affected_schedules: 3,\n  affected_patients: 15,\n  refund_amount: 375.00\n}
+deactivate Backend
+
+Frontend --> Admin : 显示处理结果\n┌────────────────────────┐\n│ ✅ 请假申请已批准        │\n│                        │\n│ 📅 取消排班: 3个        │\n│ 👥 受影响患者: 15人     │\n│ 💰 退款金额: ¥375.00   │\n│                        │\n│ 系统已自动:             │\n│ - 取消相关排班          │\n│ - 通知受影响患者        │\n│ - 标记退款待处理        │\n└────────────────────────┘
+deactivate Frontend
+
+== 医生收到审批通知 ==
+Doctor -> Frontend : 查看请假申请状态
+activate Frontend
+Frontend -> Backend : GET /api/leave-requests/my-requests
+activate Backend
+Backend -> LeaveDB : SELECT * FROM leave_requests\nWHERE doctor_id = 5\nORDER BY created_at DESC
+activate LeaveDB
+LeaveDB --> Backend : 返回医生的请假记录
+deactivate LeaveDB
+Backend --> Frontend : 返回请假列表
+deactivate Backend
+Frontend --> Doctor : 显示请假状态：已批准\n请假时间：2025-11-15 至 2025-11-17
+deactivate Frontend
+
+== 拒绝请假的分支流程 ==
+note over Admin, Backend
+    如果管理员选择拒绝请假：
+    1. 更新leave_requests表状态为'rejected'
+    2. 记录拒绝原因
+    3. 不执行排班取消操作
+    4. 通知医生请假被拒绝
+end note
+
+@enduml
+
+
+

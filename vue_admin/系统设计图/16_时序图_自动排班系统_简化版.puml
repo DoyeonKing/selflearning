@@ -1,0 +1,128 @@
+@startuml
+!theme plain
+title 自动排班系统时序图（简化版）
+
+actor "管理员" as Admin
+participant "<<interface>>\n自动排班界面" as Dashboard
+participant "<<interface>>\n文件上传处理器" as FileHandler
+participant "<<controller>>\n自动排班控制器" as Controller
+participant "<<controller>>\n排班算法引擎" as Algorithm
+participant "<<controller>>\n文件处理器" as FileProcessor
+participant ":排班数据" as ScheduleData
+participant ":约束数据" as ConstraintData
+
+== 1. 选择科室 ==
+Admin -> Dashboard: 选择要排班的科室
+activate Dashboard
+Dashboard -> Controller: selectDepartment(departmentId)
+activate Controller
+Controller -> ScheduleData: getDepartmentInfo()
+ScheduleData ->> Controller: return departmentData
+Controller ->> Dashboard: return departmentSelected
+deactivate Controller
+Dashboard ->> Admin: 显示科室信息
+deactivate Dashboard
+
+== 2. 上传约束信息 ==
+Admin -> Dashboard: 上传医生请假、调班等信息
+activate Dashboard
+Dashboard -> FileHandler: uploadFile(file)
+activate FileHandler
+FileHandler -> FileProcessor: parseFile(file)
+activate FileProcessor
+
+FileProcessor -> FileProcessor: parseExcelFile(file)
+FileProcessor -> FileProcessor: parseCSVFile(file)
+FileProcessor -> FileProcessor: validateData(parsedData)
+
+alt 数据有效
+    FileProcessor ->> FileHandler: return parseSuccess
+    FileHandler ->> Dashboard: return uploadSuccess
+    Dashboard -> Controller: uploadConstraints(constraints)
+    activate Controller
+    Controller -> ConstraintData: saveConstraintInfo()
+    ConstraintData ->> Controller: return saveSuccess
+    Controller ->> Dashboard: return constraintsSaved
+    deactivate Controller
+else 数据无效
+    FileProcessor ->> FileHandler: return parseError
+    FileHandler ->> Dashboard: return uploadFailed
+    Dashboard ->> Admin: 提示重新上传
+end
+deactivate FileProcessor
+deactivate FileHandler
+deactivate Dashboard
+
+== 3. 自动生成排班 ==
+Admin -> Dashboard: 开始自动排班
+activate Dashboard
+Dashboard -> Controller: generateSchedule()
+activate Controller
+
+Controller -> Algorithm: generateSchedule(constraints)
+activate Algorithm
+
+Algorithm -> Algorithm: applyConstraints(schedule)
+Algorithm -> Algorithm: optimizeSchedule(schedule)
+
+alt 排班生成成功
+    Algorithm ->> Controller: return scheduleResult
+    Controller -> Controller: detectConflicts()
+    Controller -> Controller: resolveConflicts()
+    Controller ->> Dashboard: return completeScheduleResult
+else 排班生成失败
+    Algorithm ->> Controller: return generationFailed
+    Controller ->> Dashboard: return errorMessage
+end
+deactivate Algorithm
+deactivate Controller
+
+== 4. 显示排班结果 ==
+Dashboard -> Dashboard: displayScheduleResults()
+Dashboard ->> Admin: 显示医生信息卡、时间段卡片、办公地点卡片
+deactivate Dashboard
+
+== 5. 手动调整 ==
+Admin -> Dashboard: 手动调整排班信息
+activate Dashboard
+
+loop 管理员调整排班
+    Admin -> Dashboard: 拖拽调整医生排班
+    Dashboard -> Controller: updateSchedule(adjustments)
+    activate Controller
+    Controller -> Controller: validateSchedule()
+    alt 调整有效
+        Controller -> ScheduleData: saveScheduleData()
+        ScheduleData ->> Controller: return saveSuccess
+        Controller ->> Dashboard: return adjustmentSuccess
+    else 调整无效
+        Controller ->> Dashboard: return adjustmentInvalid
+    end
+    deactivate Controller
+    Dashboard ->> Admin: 显示调整结果
+end
+
+Dashboard ->> Admin: 排班调整完成
+deactivate Dashboard
+
+== 6. 完成排班 ==
+Admin -> Dashboard: 确认排班结果
+activate Dashboard
+Dashboard -> Controller: finalizeSchedule()
+activate Controller
+Controller -> ScheduleData: saveFinalSchedule()
+ScheduleData ->> Controller: return saveComplete
+Controller ->> Dashboard: return scheduleComplete
+deactivate Controller
+Dashboard ->> Admin: 自动排班流程结束
+deactivate Dashboard
+
+note right of Algorithm
+① 自我调用——对象可以调用它自己的方法
+end note
+
+note right of Controller
+② 框架——使用框架来表示需要循环的所有消息,或用来表示一条或多条消息是可选的步骤
+end note
+
+@enduml

@@ -1,0 +1,79 @@
+@startuml 手动拖拽排班时序图
+
+title 手动拖拽排班（时间段卡片→医生卡片→地点卡片，含冲突校验）
+
+actor 管理员 as Admin
+participant "前端(拖拽UI)" as UI
+participant "DragScheduleController" as Ctrl
+participant "DragScheduleService" as Svc
+participant "ConflictRules[]" as Rules
+database "DragSessionRepo" as SessDB
+database "ScheduleRepo" as SchDB
+
+== 开始排班会话 ==
+Admin -> UI : 选择科室
+UI -> Ctrl : startSession(deptId)
+Ctrl -> Svc : startSession(deptId)
+Svc -> SessDB : save(DragSession)
+SessDB --> Svc : sessionId
+Svc --> Ctrl : DragSession
+Ctrl --> UI : sessionId
+
+== 拖拽时间段卡片到“上午/下午”列 ==
+Admin -> UI : 拖拽时间段
+UI -> Ctrl : dragTimeSlot(sessionId, shift, slotId)
+Ctrl -> Svc : placeTimeSlot(...)
+Svc -> SessDB : findById(sessionId)
+SessDB --> Svc : DragSession
+Svc -> SessDB : save(session)
+Svc --> Ctrl : ok
+Ctrl --> UI : 更新列显示
+
+== 拖拽医生卡片到某日/某班次 ==
+Admin -> UI : 拖拽医生
+UI -> Ctrl : dragDoctor(sessionId, date, shift, doctorId, locationId?)
+Ctrl -> Svc : placeDoctor(...)
+Svc -> SessDB : findById(sessionId)
+SessDB --> Svc : DragSession
+
+alt 执行冲突规则
+  loop 遍历每条规则
+    Svc -> Rules : check(context)
+    Rules --> Svc : List<Conflict>
+  end
+end
+
+alt 有严重冲突(Critical)
+  Svc --> Ctrl : DragResult{accepted=false, conflicts}
+  Ctrl --> UI : 高亮冲突并提示
+else 仅警告(Warning) 或无冲突
+  Svc -> SessDB : save(session)
+  Svc --> Ctrl : DragResult{accepted=true, conflicts}
+  Ctrl --> UI : 放置成功，显示高亮(如有)
+end
+
+== 拖拽地点卡片到医生卡片(可选) ==
+Admin -> UI : 拖拽地点到医生卡
+UI -> Ctrl : dragDoctor(..., locationId)
+Ctrl -> Svc : placeDoctor(...)
+... 同上：规则校验/保存/反馈 ...
+
+== 提交本次排班 ==
+Admin -> UI : 点击“保存”
+UI -> Ctrl : commit(sessionId)
+Ctrl -> Svc : commit(sessionId)
+Svc -> SessDB : findById(sessionId)
+SessDB --> Svc : DragSession
+
+loop 将草稿写入正式排班
+  Svc -> SchDB : INSERT schedule (date, shift, doctor, location)
+  SchDB --> Svc : OK
+end
+
+Svc -> SessDB : delete(sessionId)
+Svc --> Ctrl : CommitResult{success, conflictsSummary}
+Ctrl --> UI : 显示成功并保留冲突高亮
+
+@enduml
+
+

@@ -1,0 +1,235 @@
+@startuml 医院排班系统类图
+
+title 医院排班系统 - 数据库表结构类图
+
+' 样式设置
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor<<core>> LightBlue
+    BackgroundColor<<reference>> LightGreen
+    BackgroundColor<<relation>> LightYellow
+    BorderColor Black
+    ArrowColor Black
+}
+
+' 核心业务表
+class schedules <<core>> {
+    + schedule_id : INT <<PK>>
+    --
+    + doctor_id : INT <<FK>>
+    + schedule_date : DATE
+    + slot_id : INT <<FK>>
+    + location_id : INT <<FK>>
+    + total_slots : INT
+    + booked_slots : INT
+    + fee : DECIMAL(10,2)
+    + status : ENUM
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    排班核心表
+    记录医生的每一次出诊安排
+}
+
+' 医生相关表
+class doctors <<reference>> {
+    + doctor_id : INT <<PK>>
+    --
+    + full_name : VARCHAR(100)
+    + department_id : INT <<FK>>
+    + title : VARCHAR(50)
+    + specialty : VARCHAR(200)
+    + gender : ENUM
+    + email : VARCHAR(100)
+    + phone : VARCHAR(20)
+    + hire_date : DATE
+    + status : ENUM
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    医生基本信息表
+}
+
+class departments <<reference>> {
+    + department_id : INT <<PK>>
+    --
+    + parent_id : INT <<FK>>
+    + name : VARCHAR(100)
+    + code : VARCHAR(50)
+    + description : TEXT
+    + level : INT
+    + status : ENUM
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    科室表（二级科室）
+}
+
+class parent_departments <<reference>> {
+    + parent_department_id : INT <<PK>>
+    --
+    + name : VARCHAR(100)
+    + code : VARCHAR(50)
+    + description : TEXT
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    一级科室表
+}
+
+' 资源表
+class time_slots <<reference>> {
+    + slot_id : INT <<PK>>
+    --
+    + slot_name : VARCHAR(50)
+    + start_time : TIME
+    + end_time : TIME
+    + period : ENUM
+    + duration_minutes : INT
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    固定时间段表
+    标准化的出诊时间段
+}
+
+class locations <<reference>> {
+    + location_id : INT <<PK>>
+    --
+    + name : VARCHAR(100)
+    + building : VARCHAR(100)
+    + floor : VARCHAR(20)
+    + room_number : VARCHAR(20)
+    + location_type : ENUM
+    + capacity : INT
+    + status : ENUM
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    诊室/地点表
+    标准化的出诊地点
+}
+
+' 业务关联表
+class leave_requests <<relation>> {
+    + leave_id : INT <<PK>>
+    --
+    + doctor_id : INT <<FK>>
+    + start_date : DATE
+    + end_date : DATE
+    + leave_type : ENUM
+    + reason : TEXT
+    + status : ENUM
+    + approved_by : INT <<FK>>
+    + approved_at : TIMESTAMP
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    调班/休假申请表
+    影响排班的请假记录
+}
+
+class appointments <<relation>> {
+    + appointment_id : INT <<PK>>
+    --
+    + schedule_id : INT <<FK>>
+    + patient_id : INT <<FK>>
+    + appointment_number : VARCHAR(50)
+    + status : ENUM
+    + fee_paid : DECIMAL(10,2)
+    + payment_status : ENUM
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    患者预约表
+    记录患者的挂号预约
+}
+
+class patients <<reference>> {
+    + patient_id : INT <<PK>>
+    --
+    + full_name : VARCHAR(100)
+    + id_card : VARCHAR(18)
+    + phone : VARCHAR(20)
+    + gender : ENUM
+    + birth_date : DATE
+    + address : TEXT
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    患者信息表
+}
+
+class users <<reference>> {
+    + user_id : INT <<PK>>
+    --
+    + username : VARCHAR(50)
+    + password_hash : VARCHAR(255)
+    + role : ENUM
+    + full_name : VARCHAR(100)
+    + email : VARCHAR(100)
+    + status : ENUM
+    + last_login : TIMESTAMP
+    + created_at : TIMESTAMP
+    + updated_at : TIMESTAMP
+    --
+    系统用户表
+    管理员和医生登录账号
+}
+
+' 关系定义
+schedules "N" -- "1" doctors : doctor_id\n医生出诊
+schedules "N" -- "1" time_slots : slot_id\n时间段
+schedules "N" -- "1" locations : location_id\n地点
+
+doctors "N" -- "1" departments : department_id\n所属科室
+
+departments "N" -- "1" parent_departments : parent_id\n上级科室
+
+leave_requests "N" -- "1" doctors : doctor_id\n请假医生
+leave_requests "N" -- "1" users : approved_by\n审批人
+
+appointments "N" -- "1" schedules : schedule_id\n预约排班
+appointments "N" -- "1" patients : patient_id\n预约患者
+
+' 业务流程注释
+note top of schedules
+    <b>核心表说明：</b>
+    1. 每条记录代表一次出诊安排
+    2. 关联医生、时间、地点三要素
+    3. 记录号源总数和已预约数
+    4. 支持状态管理（可用/已满/已取消）
+end note
+
+note right of doctors
+    <b>医生表说明：</b>
+    1. 存储医生基本信息
+    2. 关联到具体科室
+    3. 支持职称和专长信息
+end note
+
+note bottom of time_slots
+    <b>时间段表说明：</b>
+    1. 预设标准时间段
+    2. 支持上午/下午/晚上分类
+    3. 记录时长便于计算
+end note
+
+note bottom of locations
+    <b>地点表说明：</b>
+    1. 标准化诊室信息
+    2. 支持多种类型（门诊/住院等）
+    3. 记录容量和状态
+end note
+
+note left of leave_requests
+    <b>请假表说明：</b>
+    1. 记录医生请假申请
+    2. 支持审批流程
+    3. 触发排班自动取消
+end note
+
+@enduml
+
+
+

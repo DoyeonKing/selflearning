@@ -1,0 +1,102 @@
+@startuml
+!theme plain
+title 自动排班系统时序图（简化版）
+
+actor "管理员" as Admin
+participant "<<interface>>\nIAutoSchedulingDashboard" as Dashboard
+participant "<<controller>>\nAutoSchedulingController" as Controller
+participant "<<controller>>\nSchedulingAlgorithm" as Algorithm
+participant "<<controller>>\nFileProcessor" as FileProcessor
+participant ":ScheduleResult" as ScheduleResult
+participant ":Constraint" as Constraint
+
+== 1. 选择科室 ==
+Admin -> Dashboard: 选择要排班的科室
+activate Dashboard
+Dashboard -> Controller: selectDepartment(departmentId)
+activate Controller
+Controller ->> Dashboard: return departmentSelected
+deactivate Controller
+Dashboard ->> Admin: 显示科室信息
+deactivate Dashboard
+
+== 2. 上传约束信息 ==
+Admin -> Dashboard: 上传约束信息
+activate Dashboard
+Dashboard -> FileProcessor: parseFile(file)
+activate FileProcessor
+FileProcessor -> FileProcessor: parseExcelFile(file)
+FileProcessor -> FileProcessor: validateData(parsedData)
+alt 数据有效
+    FileProcessor ->> Dashboard: return parseSuccess
+    Dashboard -> Controller: uploadConstraints(file)
+    activate Controller
+    Controller -> Constraint: getType()
+    Constraint ->> Controller: return constraintType
+    Controller ->> Dashboard: return constraintsSaved
+    deactivate Controller
+else 数据无效
+    FileProcessor ->> Dashboard: return parseError
+    Dashboard ->> Admin: 提示重新上传
+end
+deactivate FileProcessor
+deactivate Dashboard
+
+== 3. 自动生成排班 ==
+Admin -> Dashboard: 开始自动排班
+activate Dashboard
+Dashboard -> Controller: generateSchedule()
+activate Controller
+Controller -> Algorithm: generateSchedule(constraints)
+activate Algorithm
+Algorithm -> Algorithm: applyConstraints(schedule)
+Algorithm -> Algorithm: optimizeSchedule(schedule)
+alt 排班生成成功
+    Algorithm ->> Controller: return scheduleResult
+    Controller -> Controller: detectConflicts()
+    Controller -> Controller: resolveConflicts()
+    Controller ->> Dashboard: return completeScheduleResult
+else 排班生成失败
+    Algorithm ->> Controller: return generationFailed
+    Controller ->> Dashboard: return errorMessage
+end
+deactivate Algorithm
+deactivate Controller
+
+== 4. 显示排班结果 ==
+Dashboard -> Dashboard: displayScheduleResults()
+Dashboard ->> Admin: 显示排班结果
+deactivate Dashboard
+
+== 5. 手动调整 ==
+Admin -> Dashboard: 手动调整排班
+activate Dashboard
+Dashboard -> Controller: validateSchedule()
+activate Controller
+Controller -> Controller: validateSchedule()
+alt 调整有效
+    Controller ->> Dashboard: return adjustmentSuccess
+else 调整无效
+    Controller ->> Dashboard: return adjustmentInvalid
+end
+deactivate Controller
+Dashboard ->> Admin: 显示调整结果
+deactivate Dashboard
+
+== 6. 完成排班 ==
+Admin -> Dashboard: 确认排班结果
+activate Dashboard
+Dashboard -> Controller: exportSchedule()
+activate Controller
+Controller -> ScheduleResult: getSchedule()
+ScheduleResult ->> Controller: return finalSchedule
+Controller ->> Dashboard: return scheduleComplete
+deactivate Controller
+Dashboard ->> Admin: 自动排班流程结束
+deactivate Dashboard
+
+note right of Algorithm
+① 自我调用——对象可以调用它自己的方法
+end note
+
+@enduml

@@ -1,0 +1,200 @@
+@startuml 挂号流程时序图
+
+!theme plain
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 60
+
+actor "患者" as Patient
+
+' 控制层
+participant ":PatientController" as PC
+participant ":ScheduleController" as SC
+participant ":AppointmentController" as AC
+participant ":WaitlistController" as WC
+participant ":NotificationController" as NC
+
+' 服务层（接口）
+participant ":IPatientService" as IPS
+participant ":IScheduleService" as ISS
+participant ":IAppointmentService" as IAS
+participant ":IWaitlistService" as IWS
+participant ":INotificationService" as INS
+
+' 实体层
+participant ":Patient" as PatientEntity
+participant ":Schedule" as ScheduleEntity
+participant ":Appointment" as AppointmentEntity
+participant ":Waitlist" as WaitlistEntity
+participant ":Notification" as NotificationEntity
+
+== 患者挂号流程 ==
+
+Patient -> PC: 登录验证
+activate PC
+PC -> IPS: patientLogin(loginRequest)
+activate IPS
+IPS -> PatientEntity: validatePatient()
+PatientEntity --> IPS: return validationResult
+IPS --> PC: return loginResponse
+deactivate IPS
+PC --> Patient: 登录成功
+deactivate PC
+
+Patient -> SC: 选择科室
+activate SC
+SC -> ISS: getAvailableSchedules(departmentId, date)
+activate ISS
+ISS -> ScheduleEntity: querySchedulesByDepartment()
+ScheduleEntity --> ISS: return scheduleList
+ISS --> SC: return scheduleResponse
+deactivate ISS
+SC --> Patient: 显示科室选择
+deactivate SC
+
+Patient -> SC: 选择时间段
+activate SC
+SC -> ISS: getAvailableTimeSlots(departmentId, date)
+activate ISS
+ISS -> ScheduleEntity: queryTimeSlotsByDepartment()
+ScheduleEntity --> ISS: return timeSlotList
+ISS --> SC: return timeSlotResponse
+deactivate ISS
+SC --> Patient: 显示时间段选择
+deactivate SC
+
+Patient -> SC: 选择号别
+activate SC
+SC -> ISS: checkScheduleAvailability(scheduleId)
+activate ISS
+ISS -> ScheduleEntity: checkAvailability()
+ScheduleEntity -> ScheduleEntity: validateAvailability()
+ScheduleEntity --> ISS: return availabilityResult
+ISS --> SC: return availabilityResponse
+deactivate ISS
+SC --> Patient: 显示号别信息
+deactivate SC
+
+alt 选择的号别有余量
+    Patient -> AC: 确认就诊信息
+    activate AC
+    AC -> IAS: createAppointment(request)
+    activate IAS
+    IAS -> PatientEntity: validatePatient()
+    PatientEntity --> IAS: return patientValid
+    IAS -> ScheduleEntity: checkAvailability()
+    ScheduleEntity --> IAS: return scheduleAvailable
+    IAS -> AppointmentEntity: createAppointmentRecord()
+    AppointmentEntity -> AppointmentEntity: generateAppointmentNumber()
+    AppointmentEntity --> IAS: return appointmentCreated
+    IAS -> ScheduleEntity: updateBookedSlots()
+    ScheduleEntity --> IAS: return slotsUpdated
+    IAS --> AC: return appointmentResponse
+    deactivate IAS
+    AC --> Patient: 预约申请成功
+    deactivate AC
+
+    Patient -> AC: 支付挂号费用
+    activate AC
+    AC -> IAS: payForAppointment(id, paymentRequest)
+    activate IAS
+    IAS -> AppointmentEntity: updatePaymentStatus()
+    AppointmentEntity -> AppointmentEntity: processPayment()
+    AppointmentEntity --> IAS: return paymentProcessed
+    IAS --> AC: return paymentSuccess
+    deactivate IAS
+    AC -> NC: sendAppointmentConfirmation(appointmentId)
+    activate NC
+    NC -> INS: sendNotification(patientId, message)
+    activate INS
+    INS -> NotificationEntity: createNotification()
+    NotificationEntity -> NotificationEntity: sendNotification()
+    NotificationEntity --> INS: return notificationSent
+    INS --> NC: return notificationResult
+    deactivate INS
+    deactivate NC
+    AC --> Patient: 挂号成功
+    deactivate AC
+
+else 选择的号别无余量
+    Patient -> WC: 确认候补信息
+    activate WC
+    WC -> IWS: addToWaitlist(request)
+    activate IWS
+    IWS -> PatientEntity: validatePatient()
+    PatientEntity --> IWS: return patientValid
+    IWS -> ScheduleEntity: checkWaitlistEligibility()
+    ScheduleEntity --> IWS: return eligibilityResult
+    IWS -> WaitlistEntity: createWaitlistRecord()
+    WaitlistEntity -> WaitlistEntity: assignPriority()
+    WaitlistEntity --> IWS: return waitlistCreated
+    IWS --> WC: return waitlistResponse
+    deactivate IWS
+    WC --> Patient: 候补申请成功
+    deactivate WC
+
+    WC -> NC: sendWaitlistNotification(waitlistId)
+    activate NC
+    NC -> INS: sendNotification(patientId, message)
+    activate INS
+    INS -> NotificationEntity: createNotification()
+    NotificationEntity -> NotificationEntity: sendNotification()
+    NotificationEntity --> INS: return notificationSent
+    INS --> NC: return notificationResult
+    deactivate INS
+    deactivate NC
+
+    ' 候补处理流程
+    WC -> IWS: processWaitlistNotification(waitlistId)
+    activate IWS
+    IWS -> WaitlistEntity: checkWaitlistQueue()
+    WaitlistEntity -> WaitlistEntity: processQueue()
+    WaitlistEntity --> IWS: return queueResult
+
+    alt 候补成功
+        IWS -> IAS: promoteWaitlistToAppointment(waitlistId)
+        activate IAS
+        IAS -> WaitlistEntity: getWaitlistInfo()
+        WaitlistEntity --> IAS: return waitlistInfo
+        IAS -> AppointmentEntity: createAppointmentFromWaitlist()
+        AppointmentEntity -> AppointmentEntity: generateAppointmentNumber()
+        AppointmentEntity --> IAS: return appointmentCreated
+        IAS -> WaitlistEntity: updateStatus("promoted")
+        WaitlistEntity --> IAS: return statusUpdated
+        IAS --> IWS: return appointmentCreated
+        deactivate IAS
+        IWS --> WC: return waitlistSuccess
+        deactivate IWS
+        WC -> NC: sendWaitlistSuccessNotification(waitlistId)
+        activate NC
+        NC -> INS: sendSMS(phoneNumber, "候补成功")
+        activate INS
+        INS -> NotificationEntity: createSMSNotification()
+        NotificationEntity -> NotificationEntity: sendSMS()
+        NotificationEntity --> INS: return smsSent
+        INS --> NC: return smsResult
+        deactivate INS
+        deactivate NC
+        WC --> Patient: 候补成功通知
+
+    else 候补失败
+        IWS -> WaitlistEntity: updateStatus("failed")
+        WaitlistEntity --> IWS: return statusUpdated
+        IWS --> WC: return waitlistFailed
+        deactivate IWS
+        WC -> NC: sendWaitlistFailureNotification(waitlistId)
+        activate NC
+        NC -> INS: sendNotification(patientId, "候补失败")
+        activate INS
+        INS -> NotificationEntity: createNotification()
+        NotificationEntity -> NotificationEntity: sendNotification()
+        NotificationEntity --> INS: return notificationSent
+        INS --> NC: return notificationResult
+        deactivate INS
+        deactivate NC
+        WC --> Patient: 候补失败通知
+    end
+    deactivate WC
+end
+
+@enduml

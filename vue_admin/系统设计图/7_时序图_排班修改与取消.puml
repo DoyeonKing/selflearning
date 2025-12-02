@@ -1,0 +1,193 @@
+@startuml 排班修改与取消时序图
+
+title 场景五：排班修改与取消 - 时序图
+
+actor 管理员 as Admin
+participant "前端界面" as Frontend
+participant "后端API" as Backend
+participant "消息通知服务" as NotificationService
+database "schedules表" as SchedulesDB
+database "appointments表" as AppointmentsDB
+database "patients表" as PatientsDB
+database "locations表" as LocationsDB
+
+== 查看排班列表 ==
+Admin -> Frontend : 打开排班管理页面
+activate Frontend
+
+Frontend -> Backend : GET /api/schedules/list\n?date=2025-11-10\n&department_id=5
+activate Backend
+Backend -> SchedulesDB : SELECT * FROM schedules\nWHERE schedule_date='2025-11-10'\nAND status='available'
+activate SchedulesDB
+SchedulesDB --> Backend : 返回排班列表
+deactivate SchedulesDB
+Backend --> Frontend : 返回排班数据
+deactivate Backend
+
+Frontend --> Admin : 显示排班列表\n(医生/时间/地点/号源等)
+deactivate Frontend
+
+== 修改排班流程 ==
+Admin -> Frontend : 选择要修改的排班\n(schedule_id=1001)
+Admin -> Frontend : 点击"编辑"按钮
+
+Frontend -> Backend : GET /api/schedules/1001/detail
+activate Frontend
+activate Backend
+Backend -> SchedulesDB : SELECT * FROM schedules\nWHERE schedule_id=1001
+activate SchedulesDB
+SchedulesDB --> Backend : 返回排班详情
+deactivate SchedulesDB
+Backend --> Frontend : 返回完整排班信息
+deactivate Backend
+
+Frontend --> Admin : 显示编辑表单\n当前值：地点=门诊楼-301, 号源=10
+deactivate Frontend
+
+Admin -> Frontend : 修改信息\n地点改为：门诊楼-305(ID=15)\n号源改为：12
+Admin -> Frontend : 点击"保存修改"
+
+Frontend -> Backend : PUT /api/schedules/1001/update\n{\n  location_id: 15,\n  total_slots: 12\n}
+activate Frontend
+activate Backend
+
+== 验证修改的合理性 ==
+Backend -> Backend : 验证新地点是否可用
+
+Backend -> LocationsDB : SELECT * FROM locations\nWHERE location_id=15\nAND status='available'
+activate LocationsDB
+LocationsDB --> Backend : 返回地点信息
+deactivate LocationsDB
+
+alt 新地点不可用
+    Backend --> Frontend : 返回错误\n{error: "所选地点不可用"}
+    Frontend --> Admin : 显示错误提示
+    deactivate Backend
+    deactivate Frontend
+else 新地点可用
+    Backend -> AppointmentsDB : 检查已预约数量\nSELECT COUNT(*) as booked\nFROM appointments\nWHERE schedule_id=1001\nAND status IN ('confirmed', 'paid')
+    activate AppointmentsDB
+    AppointmentsDB --> Backend : 返回已预约数: 8
+    deactivate AppointmentsDB
+    
+    alt 新号源数 < 已预约数
+        Backend --> Frontend : 返回错误\n{error: "新号源数(12)不能小于已预约数(8)"}
+        Frontend --> Admin : 显示错误提示\n"已有8位患者预约，号源不能少于8"
+        deactivate Backend
+        deactivate Frontend
+    else 新号源数 >= 已预约数
+        == 执行更新操作 ==
+        Backend -> SchedulesDB : UPDATE schedules\nSET location_id = 15,\n    total_slots = 12,\n    updated_at = NOW()\nWHERE schedule_id = 1001
+        activate SchedulesDB
+        SchedulesDB --> Backend : 更新成功
+        deactivate SchedulesDB
+        
+        == 通知已预约患者 ==
+        Backend -> AppointmentsDB : 获取已预约患者
+        activate AppointmentsDB
+        AppointmentsDB --> Backend : 返回患者列表
+        deactivate AppointmentsDB
+        
+        Backend -> NotificationService : 发送通知给患者\n"您预约的排班地点已变更\n新地点：门诊楼-305诊室"
+        activate NotificationService
+        NotificationService --> Backend : 通知已发送
+        deactivate NotificationService
+        
+        Backend -> Backend : 记录修改日志
+        
+        Backend --> Frontend : 返回成功\n{\n  success: true,\n  message: "排班修改成功",\n  notified_patients: 8\n}
+        deactivate Backend
+        
+        Frontend --> Admin : 显示成功提示\n"排班已修改，已通知8位患者"
+        deactivate Frontend
+    end
+end
+
+== 取消排班流程 ==
+Admin -> Frontend : 选择要取消的排班\n(schedule_id=1002)
+Admin -> Frontend : 点击"取消排班"按钮
+
+Frontend --> Admin : 显示确认对话框\n"确定要取消该排班吗？"
+deactivate Frontend
+
+Admin -> Frontend : 确认取消
+
+Frontend -> Backend : POST /api/schedules/1002/cancel
+activate Frontend
+activate Backend
+
+== 检查是否有患者预约 ==
+Backend -> AppointmentsDB : SELECT * FROM appointments\nWHERE schedule_id=1002\nAND status IN ('confirmed', 'paid')
+activate AppointmentsDB
+AppointmentsDB --> Backend : 返回预约记录列表
+deactivate AppointmentsDB
+
+alt 有患者预约
+    Backend -> Backend : 计算需退款总额
+    
+    loop 遍历每个预约
+        Backend -> AppointmentsDB : 更新预约状态\nUPDATE appointments\nSET status = 'cancelled_by_admin',\n    refund_status = 'pending',\n    cancelled_at = NOW()\nWHERE appointment_id = [预约ID]
+        activate AppointmentsDB
+        AppointmentsDB --> Backend : 更新成功
+        deactivate AppointmentsDB
+        
+        Backend -> PatientsDB : 获取患者信息
+        activate PatientsDB
+        PatientsDB --> Backend : 返回患者联系方式
+        deactivate PatientsDB
+        
+        Backend -> NotificationService : 发送退款通知\n"您预约的门诊已取消\n挂号费¥25.00将在3-5个工作日退回"
+        activate NotificationService
+        NotificationService --> Backend : 通知已发送
+        deactivate NotificationService
+    end
+    
+    Backend -> SchedulesDB : 更新排班状态\nUPDATE schedules\nSET status = 'cancelled',\n    cancellation_reason = 'admin_cancelled',\n    cancelled_at = NOW(),\n    updated_at = NOW()\nWHERE schedule_id = 1002
+    activate SchedulesDB
+    SchedulesDB --> Backend : 更新成功
+    deactivate SchedulesDB
+    
+    Backend -> Backend : 记录取消日志\n包括：\n- 取消的排班ID\n- 受影响的患者数\n- 退款总额\n- 操作管理员
+    
+    Backend --> Frontend : 返回成功\n{\n  success: true,\n  message: "排班已取消",\n  affected_patients: 5,\n  refund_amount: 125.00,\n  warnings: [\n    "已通知5位患者",\n    "退款金额¥125.00待处理"\n  ]\n}
+    deactivate Backend
+    
+    Frontend --> Admin : 显示取消结果\n┌────────────────────────┐\n│ ✅ 排班已取消           │\n│                        │\n│ 📋 受影响患者: 5人      │\n│ 💰 退款金额: ¥125.00   │\n│                        │\n│ ⚠️ 注意事项:           │\n│ - 已通知所有患者       │\n│ - 请处理退款事宜       │\n└────────────────────────┘
+    deactivate Frontend
+    
+else 无患者预约
+    Backend -> SchedulesDB : 直接更新排班状态\nUPDATE schedules\nSET status = 'cancelled',\n    cancellation_reason = 'admin_cancelled',\n    cancelled_at = NOW()\nWHERE schedule_id = 1002
+    activate SchedulesDB
+    SchedulesDB --> Backend : 更新成功
+    deactivate SchedulesDB
+    
+    Backend --> Frontend : 返回成功\n{\n  success: true,\n  message: "排班已取消（无患者预约）"\n}
+    deactivate Backend
+    
+    Frontend --> Admin : 显示成功提示\n"排班已取消"
+    deactivate Frontend
+end
+
+== 触发冲突重新检测 ==
+note over Frontend, Backend
+    排班修改或取消后，
+    系统自动重新检测所有排班冲突，
+    更新高亮显示状态
+end note
+
+Frontend -> Backend : POST /api/schedules/detect-conflicts
+activate Frontend
+activate Backend
+Backend -> SchedulesDB : 执行冲突检测
+activate SchedulesDB
+SchedulesDB --> Backend : 返回冲突数据
+deactivate SchedulesDB
+Backend --> Frontend : 返回更新后的冲突信息
+deactivate Backend
+Frontend --> Admin : 刷新排班列表\n更新冲突高亮
+deactivate Frontend
+
+@enduml
+
+
+

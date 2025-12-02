@@ -1,0 +1,36 @@
+{
+  "name": "vue_02",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@fullcalendar/core": "^6.1.15",
+    "@fullcalendar/daygrid": "^6.1.15",
+    "@fullcalendar/interaction": "^6.1.15",
+    "@fullcalendar/timegrid": "^6.1.15",
+    "@fullcalendar/vue3": "^6.1.15",
+    "axios": "^1.12.2",
+    "echarts": "^6.0.0",
+    "element-plus": "^2.9.6",
+    "html5-qrcode": "^2.3.8",
+    "pinia": "^2.3.1",
+    "sass": "^1.79.3",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "unplugin-auto-import": "^19.1.1",
+    "unplugin-element-plus": "^0.9.1",
+    "unplugin-vue-components": "^28.4.1",
+    "vite": "^6.1.0",
+    "vite-plugin-vue-devtools": "^7.7.2"
+  }
+}

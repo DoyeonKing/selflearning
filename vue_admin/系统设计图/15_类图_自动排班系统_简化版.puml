@@ -1,0 +1,186 @@
+@startuml
+!theme plain
+title 自动排班系统类图（简化版）
+
+' 定义包和分层
+package "接口层 (Interface Layer)" {
+  ' 自动排班界面接口
+  interface IAutoSchedulingDashboard {
+    + selectDepartment(departmentId: string)
+    + uploadConstraints(file: File)
+    + displayScheduleResults()
+    + enableManualAdjustment()
+  }
+  
+  ' 文件上传接口
+  interface IFileUploadHandler {
+    + uploadFile(file: File)
+    + parseFile(file: File)
+    + downloadTemplate()
+  }
+}
+
+package "控制层 (Control Layer)" {
+  ' 自动排班控制器
+  class AutoSchedulingController {
+    - departmentId: string
+    - constraints: Constraint[]
+    - scheduleResult: ScheduleResult
+    --
+    + selectDepartment(departmentId: string)
+    + uploadConstraints(file: File)
+    + generateSchedule(): ScheduleResult
+    + validateSchedule(): boolean
+    + resolveConflicts(): boolean
+    + exportSchedule(): File
+  }
+  
+  ' 排班算法引擎
+  class SchedulingAlgorithm {
+    - constraints: Constraint[]
+    --
+    + generateSchedule(constraints: Constraint[]): Schedule
+    + applyConstraints(schedule: Schedule): Schedule
+    + optimizeSchedule(schedule: Schedule): Schedule
+  }
+  
+  ' 文件处理器
+  class FileProcessor {
+    --
+    + parseExcelFile(file: File): ParsedData
+    + parseCSVFile(file: File): ParsedData
+    + validateData(data: ParsedData): boolean
+    + generateTemplate(): File
+  }
+}
+
+package "实体层 (Entity Layer)" {
+  ' 排班结果实体
+  class ScheduleResult {
+    - schedule: Schedule
+    - conflicts: Conflict[]
+    - qualityScore: number
+    --
+    + getSchedule(): Schedule
+    + getConflicts(): Conflict[]
+    + getQualityScore(): number
+    + hasConflicts(): boolean
+  }
+  
+  ' 约束实体
+  class Constraint {
+    - type: string
+    - doctorId: string
+    - date: string
+    - shift: string
+    - parameters: Map<string, any>
+    --
+    + getType(): string
+    + getDoctorId(): string
+    + getDate(): string
+    + getShift(): string
+    + getParameters(): Map<string, any>
+  }
+  
+  ' 解析数据实体
+  class ParsedData {
+    - constraints: Constraint[]
+    - errors: string[]
+    --
+    + getConstraints(): Constraint[]
+    + getErrors(): string[]
+    + hasErrors(): boolean
+  }
+  
+  ' 冲突实体
+  class Conflict {
+    - type: string
+    - description: string
+    - severity: string
+    - doctorId: string
+    --
+    + getType(): string
+    + getDescription(): string
+    + getSeverity(): string
+    + getDoctorId(): string
+  }
+  
+  ' 排班实体
+  class Schedule {
+    - date: string
+    - shift: string
+    - doctors: Doctor[]
+    - timeSlots: TimeSlot[]
+    --
+    + getDate(): string
+    + getShift(): string
+    + getDoctors(): Doctor[]
+    + getTimeSlots(): TimeSlot[]
+    + addDoctor(doctor: Doctor)
+    + removeDoctor(doctor: Doctor)
+  }
+  
+  ' 医生实体
+  class Doctor {
+    - id: string
+    - name: string
+    - identifier: string
+    - title: string
+    - location: string
+    --
+    + getId(): string
+    + getName(): string
+    + getIdentifier(): string
+    + getTitle(): string
+    + getLocation(): string
+    + setLocation(location: string)
+  }
+  
+  ' 时间段实体
+  class TimeSlot {
+    - slot_id: string
+    - slot_name: string
+    - start_time: string
+    - end_time: string
+    - period: string
+    --
+    + getSlotId(): string
+    + getSlotName(): string
+    + getStartTime(): string
+    + getEndTime(): string
+    + getPeriod(): string
+  }
+}
+
+' 关系定义
+' 控制层与实体层的关系
+AutoSchedulingController --> ScheduleResult : creates
+AutoSchedulingController --> Constraint : manages
+AutoSchedulingController --> ParsedData : processes
+AutoSchedulingController --> Conflict : detects
+
+SchedulingAlgorithm --> Schedule : generates
+SchedulingAlgorithm --> Constraint : applies
+
+FileProcessor --> ParsedData : creates
+
+' 接口层与控制层的关系
+IAutoSchedulingDashboard ..> AutoSchedulingController : uses
+IFileUploadHandler ..> FileProcessor : uses
+
+' 实体层内部关系
+ScheduleResult --> Schedule : contains 1
+ScheduleResult --> Conflict : contains 0..*
+Schedule --> Doctor : contains 0..*
+Schedule --> TimeSlot : contains 0..*
+ParsedData --> Constraint : contains 0..*
+
+' 组合关系
+AutoSchedulingController *-- SchedulingAlgorithm
+AutoSchedulingController *-- FileProcessor
+
+@enduml
+
+
+
+

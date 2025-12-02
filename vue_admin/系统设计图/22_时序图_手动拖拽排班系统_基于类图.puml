@@ -1,0 +1,74 @@
+@startuml
+!theme plain
+title 手动拖拽排班系统时序图（简化版）
+
+actor "管理员" as Admin
+participant "<<interface>>\nIScheduleDashboard" as Dashboard
+participant "<<controller>>\nScheduleController" as Controller
+participant "<<controller>>\nConflictDetectionController" as ConflictDetector
+participant ":Schedule" as Schedule
+participant ":Doctor" as Doctor
+participant ":TimeSlot" as TimeSlot
+
+== 1. 选择科室 ==
+Admin -> Dashboard: 选择要排班的科室
+activate Dashboard
+Dashboard -> Controller: selectDepartment(departmentId)
+activate Controller
+Controller ->> Dashboard: return departmentSelected
+deactivate Controller
+Dashboard ->> Admin: 显示科室排班表
+deactivate Dashboard
+
+== 2. 拖拽时间段卡片 ==
+Admin -> Dashboard: 拖拽时间段卡片
+activate Dashboard
+Dashboard -> Controller: addTimeSlotToShift(timeSlot, date, shift)
+activate Controller
+Controller -> TimeSlot: isTimeSlotMatchShift(shift)
+TimeSlot ->> Controller: return matchResult
+alt 时间段匹配
+    Controller -> Schedule: addTimeSlot(timeSlot)
+    Schedule ->> Controller: return timeSlotAdded
+    Controller -> ConflictDetector: detectTimeSlotOverlapConflicts()
+    activate ConflictDetector
+    ConflictDetector ->> Controller: return noConflict
+    deactivate ConflictDetector
+    Controller ->> Dashboard: return timeSlotAdded
+else 时间段不匹配
+    Controller ->> Dashboard: return timeSlotMismatch
+end
+deactivate Controller
+Dashboard ->> Admin: 显示时间段卡片
+deactivate Dashboard
+
+== 3. 拖拽医生卡片 ==
+Admin -> Dashboard: 拖拽医生卡片
+activate Dashboard
+Dashboard -> Controller: addDoctorToShift(doctor, date, shift)
+activate Controller
+Controller -> Schedule: addDoctor(doctor)
+Schedule ->> Controller: return doctorAdded
+Controller -> ConflictDetector: detectDoctorDoubleBooking()
+activate ConflictDetector
+ConflictDetector ->> Controller: return noConflict
+deactivate ConflictDetector
+Controller ->> Dashboard: return doctorScheduled
+deactivate Controller
+Dashboard ->> Admin: 显示医生卡片
+deactivate Dashboard
+
+== 4. 冲突检测和显示 ==
+Dashboard -> ConflictDetector: detectAllConflicts()
+activate ConflictDetector
+ConflictDetector -> ConflictDetector: detectAllConflicts()
+ConflictDetector ->> Dashboard: return conflictResults
+deactivate ConflictDetector
+Dashboard ->> Admin: 高亮显示冲突（如有）
+deactivate Dashboard
+
+note right of ConflictDetector
+① 自我调用——对象可以调用它自己的方法
+end note
+
+@enduml

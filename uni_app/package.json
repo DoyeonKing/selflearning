@@ -1,0 +1,52 @@
+{
+  "name": "uniapp-project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "serve": "npm run dev:h5",
+    "build": "npm run build:h5",
+    "dev": "vite --host --port 3000",
+    "start": "npm run dev",
+    "dev:app": "uni build --platform app-plus --watch",
+    "build:app": "uni build --platform app-plus",
+    "dev:custom": "uni build --platform custom --watch",
+    "build:custom": "uni build --platform custom",
+    "dev:h5": "uni build --platform h5 --watch",
+    "build:h5": "uni build --platform h5",
+    "dev:mp-alipay": "uni build --platform mp-alipay --watch",
+    "build:mp-alipay": "uni build --platform mp-alipay",
+    "dev:mp-baidu": "uni build --platform mp-baidu --watch",
+    "build:mp-baidu": "uni build --platform mp-baidu",
+    "dev:mp-weixin": "uni build --platform mp-weixin --watch",
+    "build:mp-weixin": "uni build --platform mp-weixin",
+    "dev:mp-toutiao": "uni build --platform mp-toutiao --watch",
+    "build:mp-toutiao": "uni build --platform mp-toutiao",
+    "dev:quickapp-webview": "uni build --platform quickapp-webview --watch",
+    "build:quickapp-webview": "uni build --platform quickapp-webview"
+  },
+  "dependencies": {
+    "@dcloudio/uni-cli-i18n": "^2.0.2-4070620250821001",
+    "@dcloudio/uni-h5": "^2.0.2-4070620250821001",
+    "pinia": "^2.1.6",
+    "semver": "^7.7.3",
+    "vue": "^2.6.14",
+    "webpack": "^5.102.1",
+    "webpack-cli": "^6.0.1"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "*",
+    "@dcloudio/uni-automator": "*",
+    "@dcloudio/uni-cli-shared": "*",
+    "@dcloudio/uni-stacktracey": "*",
+    "@dcloudio/vite-plugin-uni": "*",
+    "vite": "^4.0.0"
+  },
+  "browserslist": [
+    "Android >= 4.4",
+    "ios >= 9"
+  ],
+  "uni-app": {
+    "scripts": {}
+  }
+}

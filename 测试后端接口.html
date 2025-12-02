@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>测试后端接口</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+        #result { margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>后端接口测试工具</h1>
+    <p>用于测试后端服务是否正常响应</p>
+    
+    <div>
+        <label>后端地址：</label>
+        <input type="text" id="baseUrl" value="http://192.168.137.1:8080" style="width: 300px; padding: 5px;">
+    </div>
+    
+    <div style="margin-top: 20px;">
+        <button onclick="testConnection()">测试连接</button>
+        <button onclick="testLogin()">测试登录接口</button>
+    </div>
+    
+    <div id="result"></div>
+    
+    <script>
+        function log(message) {
+            const result = document.getElementById('result');
+            result.innerHTML += '<p>' + new Date().toLocaleTimeString() + ': ' + message + '</p>';
+            result.scrollTop = result.scrollHeight;
+        }
+        
+        async function testConnection() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            log('开始测试连接: ' + baseUrl);
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(baseUrl, {
+                    method: 'GET',
+                    mode: 'no-cors', // 避免CORS问题
+                    signal: AbortSignal.timeout(10000) // 10秒超时
+                });
+                const duration = Date.now() - startTime;
+                log('连接成功！耗时: ' + duration + 'ms');
+            } catch (error) {
+                log('连接失败: ' + error.message);
+            }
+        }
+        
+        async function testLogin() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            log('开始测试登录接口...');
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(baseUrl + '/api/auth/patient/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        identifier: 'test',
+                        password: 'test'
+                    }),
+                    signal: AbortSignal.timeout(30000) // 30秒超时
+                });
+                
+                const duration = Date.now() - startTime;
+                const data = await response.json();
+                
+                log('登录接口响应成功！');
+                log('状态码: ' + response.status);
+                log('耗时: ' + duration + 'ms');
+                log('响应数据: ' + JSON.stringify(data));
+            } catch (error) {
+                log('登录接口测试失败: ' + error.message);
+                if (error.name === 'TimeoutError') {
+                    log('请求超时！可能是网络问题或后端响应太慢');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+

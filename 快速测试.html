@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>快速测试</title>
+</head>
+<body>
+    <h1>后端API测试</h1>
+    <button onclick="test()">测试连接</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function test() {
+            try {
+                const response = await fetch('http://localhost:8080/api/qrcode/nodes');
+                const data = await response.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('result').textContent = '错误: ' + error.message;
+            }
+        }
+        // 自动测试
+        test();
+    </script>
+</body>
+</html>
+

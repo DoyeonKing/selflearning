@@ -1,0 +1,411 @@
+@startuml 挂号功能类图
+
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "挂号服务层 (Registration Service Layer)" as RegistrationServiceLayer {
+    interface IRegistrationService {
+        + selectDepartment(departmentId: Integer): Department
+        + selectTimeSlot(timeSlotId: Integer): TimeSlot
+        + selectSchedule(scheduleId: Integer): Schedule
+        + checkAvailability(scheduleId: Integer): Boolean
+        + createAppointment(patientId: Integer, scheduleId: Integer): Appointment
+        + createWaitlist(patientId: Integer, scheduleId: Integer): Waitlist
+        + processPayment(appointmentId: Integer, amount: BigDecimal): Boolean
+        + sendNotification(patientId: Integer, message: String): void
+    }
+    
+    interface IAppointmentService {
+        + createAppointment(request: AppointmentCreateRequest): AppointmentResponse
+        + getAppointmentById(id: Integer): AppointmentResponse
+        + updateAppointmentStatus(id: Integer, status: String): AppointmentResponse
+        + cancelAppointment(id: Integer): Boolean
+        + getPatientAppointments(patientId: Integer): List<AppointmentResponse>
+    }
+    
+    interface IScheduleService {
+        + findScheduleById(id: Integer): ScheduleResponse
+        + getAvailableSchedules(departmentId: Integer, date: Date): List<ScheduleResponse>
+        + checkScheduleAvailability(scheduleId: Integer): Boolean
+        + updateBookedSlots(scheduleId: Integer, count: Integer): Boolean
+    }
+    
+    interface IWaitlistService {
+        + addToWaitlist(request: WaitlistCreateRequest): WaitlistResponse
+        + getWaitlistByPatient(patientId: Integer): List<WaitlistResponse>
+        + processWaitlistNotification(waitlistId: Integer): Boolean
+        + promoteWaitlistToAppointment(waitlistId: Integer): AppointmentResponse
+    }
+    
+    interface IAvailabilityService {
+        + checkScheduleAvailability(scheduleId: Integer): AvailabilityResult
+        + getAvailableTimeSlots(departmentId: Integer, date: Date): List<TimeSlotResponse>
+        + updateAvailability(scheduleId: Integer, count: Integer): Boolean
+    }
+    
+    interface IBookingService {
+        + bookAppointment(patientId: Integer, scheduleId: Integer): BookingResult
+        + confirmBooking(appointmentId: Integer): Boolean
+        + cancelBooking(appointmentId: Integer): Boolean
+    }
+}
+
+package "支持服务层 (Support Service Layer)" as SupportServiceLayer {
+    interface IPatientService {
+        + getPatientInfo(patientId: Integer): Patient
+        + updatePatientInfo(patientId: Integer, info: PatientInfo): void
+        + validatePatient(patientId: Integer): Boolean
+    }
+    
+    interface IDepartmentService {
+        + getDepartmentById(id: Integer): Department
+        + getDepartmentTree(): List<DepartmentTreeDTO>
+        + getDepartmentDoctors(departmentId: Integer): List<DoctorResponse>
+    }
+    
+    interface ITimeSlotService {
+        + getTimeSlotById(id: Integer): TimeSlot
+        + getAllTimeSlots(): List<TimeSlotResponse>
+        + getAvailableTimeSlots(date: Date): List<TimeSlotResponse>
+    }
+    
+    interface IPaymentService {
+        + processPayment(amount: BigDecimal, method: String): PaymentResult
+        + refundPayment(appointmentId: Integer): Boolean
+        + getPaymentStatus(paymentId: String): String
+    }
+    
+    interface INotificationService {
+        + sendSMS(phone: String, message: String): Boolean
+        + sendEmail(email: String, message: String): Boolean
+        + sendPushNotification(patientId: Integer, message: String): Boolean
+        + createNotification(userId: Integer, type: String, content: String): Boolean
+    }
+}
+
+package "挂号控制层 (Registration Controller Layer)" as RegistrationControllerLayer {
+    class AppointmentController {
+        - appointmentService: IAppointmentService
+        - paymentService: IPaymentService
+        - notificationService: INotificationService
+        - patientService: IPatientService
+        - scheduleService: IScheduleService
+        + createAppointment(request: AppointmentCreateRequest): ResponseEntity<AppointmentResponse>
+        + getAppointmentById(id: Integer): ResponseEntity<AppointmentResponse>
+        + updateAppointmentStatus(id: Integer, status: String): ResponseEntity<AppointmentResponse>
+        + cancelAppointment(id: Integer): ResponseEntity<Boolean>
+        + getPatientAppointments(patientId: Integer): ResponseEntity<List<AppointmentResponse>>
+        + payForAppointment(id: Integer, request: PaymentRequest): ResponseEntity<PaymentResponse>
+        + confirmAppointment(id: Integer): ResponseEntity<AppointmentResponse>
+        + checkInAppointment(id: Integer): ResponseEntity<AppointmentResponse>
+        + getAppointmentHistory(patientId: Integer): ResponseEntity<List<AppointmentResponse>>
+        + rescheduleAppointment(id: Integer, newScheduleId: Integer): ResponseEntity<AppointmentResponse>
+        + validateAppointment(request: AppointmentCreateRequest): ResponseEntity<Boolean>
+        + getAppointmentStatistics(patientId: Integer): ResponseEntity<AppointmentStatistics>
+    }
+    
+    class ScheduleController {
+        - scheduleService: IScheduleService
+        - departmentService: IDepartmentService
+        - doctorService: IDoctorService
+        - timeSlotService: ITimeSlotService
+        + getScheduleById(id: Integer): ResponseEntity<ScheduleResponse>
+        + getAvailableSchedules(departmentId: Integer, date: Date): ResponseEntity<List<ScheduleResponse>>
+        + checkScheduleAvailability(scheduleId: Integer): ResponseEntity<Boolean>
+        + getSchedulesByDoctor(doctorId: Integer): ResponseEntity<List<ScheduleResponse>>
+        + getSchedulesByDepartment(departmentId: Integer): ResponseEntity<List<ScheduleResponse>>
+        + searchSchedules(criteria: ScheduleSearchCriteria): ResponseEntity<List<ScheduleResponse>>
+        + getScheduleStatistics(departmentId: Integer): ResponseEntity<ScheduleStatistics>
+        + updateScheduleCapacity(scheduleId: Integer, newCapacity: Integer): ResponseEntity<ScheduleResponse>
+        + getScheduleTimeSlots(scheduleId: Integer): ResponseEntity<List<TimeSlotResponse>>
+        + getAvailableTimeSlots(departmentId: Integer, date: Date): ResponseEntity<List<TimeSlotResponse>>
+        + getScheduleByDateRange(departmentId: Integer, startDate: Date, endDate: Date): ResponseEntity<List<ScheduleResponse>>
+        + validateScheduleBooking(scheduleId: Integer, patientId: Integer): ResponseEntity<Boolean>
+    }
+    
+    class WaitlistController {
+        - waitlistService: IWaitlistService
+        - notificationService: INotificationService
+        - patientService: IPatientService
+        - scheduleService: IScheduleService
+        - appointmentService: IAppointmentService
+        + addToWaitlist(request: WaitlistCreateRequest): ResponseEntity<WaitlistResponse>
+        + getWaitlistById(id: Integer): ResponseEntity<WaitlistResponse>
+        + getWaitlistByPatient(patientId: Integer): ResponseEntity<List<WaitlistResponse>>
+        + cancelWaitlist(id: Integer): ResponseEntity<Boolean>
+        + processWaitlistNotification(waitlistId: Integer): ResponseEntity<Boolean>
+        + promoteWaitlistToAppointment(waitlistId: Integer): ResponseEntity<AppointmentResponse>
+        + getWaitlistBySchedule(scheduleId: Integer): ResponseEntity<List<WaitlistResponse>>
+        + updateWaitlistPriority(id: Integer, priority: Integer): ResponseEntity<WaitlistResponse>
+        + getWaitlistStatistics(patientId: Integer): ResponseEntity<WaitlistStatistics>
+        + processAllWaitlistsForSchedule(scheduleId: Integer): ResponseEntity<List<AppointmentResponse>>
+        + checkWaitlistEligibility(patientId: Integer, scheduleId: Integer): ResponseEntity<Boolean>
+        + getWaitlistPosition(id: Integer): ResponseEntity<Integer>
+        + sendWaitlistReminder(id: Integer): ResponseEntity<Boolean>
+    }
+    
+    class PatientController {
+        - patientService: IPatientService
+        + patientLogin(request: LoginRequest): ResponseEntity<LoginResponse>
+        + getPatientInfo(patientId: Integer): ResponseEntity<PatientResponse>
+        + updatePatientInfo(patientId: Integer, request: PatientUpdateRequest): ResponseEntity<PatientResponse>
+        + validatePatient(patientId: Integer): ResponseEntity<Boolean>
+        + getPatientAppointments(patientId: Integer): ResponseEntity<List<AppointmentResponse>>
+    }
+    
+    class PaymentController {
+        - paymentService: IPaymentService
+        - appointmentService: IAppointmentService
+        + processPayment(request: PaymentRequest): ResponseEntity<PaymentResponse>
+        + handlePaymentCallback(callbackRequest: PaymentCallbackRequest): ResponseEntity<String>
+        + refundPayment(paymentId: Integer): ResponseEntity<PaymentResponse>
+        + getPaymentStatus(paymentId: Integer): ResponseEntity<PaymentStatus>
+        + getPaymentHistory(patientId: Integer): ResponseEntity<List<PaymentResponse>>
+    }
+    
+    class NotificationController {
+        - notificationService: INotificationService
+        - patientService: IPatientService
+        - appointmentService: IAppointmentService
+        - waitlistService: IWaitlistService
+        + sendNotification(request: NotificationSendRequest): ResponseEntity<Boolean>
+        + getPatientNotifications(patientId: Integer): ResponseEntity<List<NotificationResponse>>
+        + markNotificationAsRead(notificationId: Integer): ResponseEntity<Boolean>
+        + sendAppointmentReminder(appointmentId: Integer): ResponseEntity<Boolean>
+        + sendWaitlistNotification(waitlistId: Integer): ResponseEntity<Boolean>
+        + sendSMS(phoneNumber: String, message: String): ResponseEntity<Boolean>
+        + sendEmail(email: String, subject: String, body: String): ResponseEntity<Boolean>
+        + sendPushNotification(patientId: Integer, message: String): ResponseEntity<Boolean>
+        + getNotificationById(id: Integer): ResponseEntity<NotificationResponse>
+        + getUnreadNotifications(patientId: Integer): ResponseEntity<List<NotificationResponse>>
+        + markAllNotificationsAsRead(patientId: Integer): ResponseEntity<Boolean>
+        + deleteNotification(id: Integer): ResponseEntity<Boolean>
+        + getNotificationStatistics(patientId: Integer): ResponseEntity<NotificationStatistics>
+        + sendBulkNotification(patientIds: List<Integer>, message: String): ResponseEntity<Boolean>
+        + scheduleNotification(patientId: Integer, message: String, sendTime: DateTime): ResponseEntity<Boolean>
+    }
+}
+
+package "挂号实体层 (Registration Entity Layer)" as RegistrationEntityLayer {
+    class Patient {
+        - patientId: Integer
+        - identifier: String
+        - passwordHash: String
+        - fullName: String
+        - phoneNumber: String
+        - idCardNumber: String
+        - gender: String
+        - dateOfBirth: Date
+        - address: String
+        - patientType: String
+        - status: String
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getPatientInfo(): PatientInfo
+        + updateInfo(info: PatientInfo): void
+        + validateInfo(): Boolean
+        + isBlacklisted(): Boolean
+    }
+    
+    class Doctor {
+        - doctorId: Integer
+        - identifier: String
+        - passwordHash: String
+        - fullName: String
+        - idCardNumber: String
+        - phoneNumber: String
+        - title: String
+        - specialty: String
+        - bio: String
+        - photoUrl: String
+        - departmentId: Integer
+        - status: String
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getDoctorInfo(): DoctorInfo
+        + updateInfo(info: DoctorInfo): void
+        + isAvailable(): Boolean
+    }
+    
+    class Department {
+        - departmentId: Integer
+        - parentId: Integer
+        - name: String
+        - description: String
+        - isActive: Boolean
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getDepartmentInfo(): DepartmentInfo
+        + getSubDepartments(): List<Department>
+        + isActive(): Boolean
+    }
+    
+    class TimeSlot {
+        - slotId: Integer
+        - slotName: String
+        - startTime: Time
+        - endTime: Time
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getTimeSlotInfo(): TimeSlotInfo
+        + checkAvailability(): Boolean
+        + isWithinTimeRange(time: Time): Boolean
+    }
+    
+    class Location {
+        - locationId: Integer
+        - locationName: String
+        - departmentId: Integer
+        - floorLevel: Integer
+        - building: String
+        - roomNumber: String
+        - capacity: Integer
+        - mapNodeId: Integer
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getLocationInfo(): LocationInfo
+        + isAvailable(): Boolean
+        + getCapacity(): Integer
+    }
+    
+    class Schedule {
+        - scheduleId: Integer
+        - doctorId: Integer
+        - departmentId: Integer
+        - slotId: Integer
+        - locationId: Integer
+        - scheduleDate: Date
+        - totalSlots: Integer
+        - bookedSlots: Integer
+        - fee: BigDecimal
+        - status: String
+        - remarks: String
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getScheduleInfo(): ScheduleInfo
+        + checkAvailability(): Boolean
+        + updateAvailability(count: Integer): void
+        + isAvailable(): Boolean
+        + getRemainingSlots(): Integer
+    }
+    
+    class Appointment {
+        - appointmentId: Integer
+        - patientId: Integer
+        - scheduleId: Integer
+        - appointmentNumber: Integer
+        - status: String
+        - paymentStatus: String
+        - paymentMethod: String
+        - transactionId: String
+        - checkInTime: DateTime
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getAppointmentInfo(): AppointmentInfo
+        + updateStatus(status: String): void
+        + cancel(): Boolean
+        + confirm(): Boolean
+        + pay(paymentMethod: String): Boolean
+    }
+    
+    class Waitlist {
+        - waitlistId: Integer
+        - patientId: Integer
+        - scheduleId: Integer
+        - status: String
+        - notificationSentAt: DateTime
+        - priority: Integer
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getWaitlistInfo(): WaitlistInfo
+        + updateStatus(status: String): void
+        + promoteToAppointment(): Appointment
+        + cancel(): Boolean
+        + notify(): Boolean
+    }
+    
+    class Notification {
+        - notificationId: Long
+        - userId: Integer
+        - userType: String
+        - type: String
+        - title: String
+        - content: String
+        - relatedEntity: String
+        - relatedId: Integer
+        - status: String
+        - priority: String
+        - sentAt: Timestamp
+        - readAt: DateTime
+        - createdAt: Timestamp
+        - updatedAt: Timestamp
+        + getNotificationInfo(): NotificationInfo
+        + markAsRead(): void
+        + send(): Boolean
+        + isRead(): Boolean
+    }
+}
+
+' 包的布局 - 三行一列
+RegistrationServiceLayer -down-> RegistrationControllerLayer
+RegistrationControllerLayer -down-> RegistrationEntityLayer
+
+' 控制层到服务层的依赖关系
+RegistrationController ..> IRegistrationService : uses
+RegistrationController ..> IPatientService : uses
+RegistrationController ..> IDepartmentService : uses
+RegistrationController ..> ITimeSlotService : uses
+RegistrationController ..> IPaymentService : uses
+RegistrationController ..> INotificationService : uses
+
+AppointmentController ..> IAppointmentService : uses
+AppointmentController ..> IPatientService : uses
+
+ScheduleController ..> IScheduleService : uses
+ScheduleController ..> IDepartmentService : uses
+
+WaitlistController ..> IWaitlistService : uses
+WaitlistController ..> IPatientService : uses
+
+AvailabilityController ..> IAvailabilityService : uses
+AvailabilityController ..> IScheduleService : uses
+
+BookingController ..> IBookingService : uses
+BookingController ..> IAppointmentService : uses
+
+' 控制层到实体层的关系
+RegistrationController --> Patient : "manages"
+RegistrationController --> Department : "queries"
+RegistrationController --> TimeSlot : "queries"
+RegistrationController --> Schedule : "queries"
+RegistrationController --> Appointment : "creates"
+RegistrationController --> Waitlist : "creates"
+
+AppointmentController --> Appointment : "manages"
+AppointmentController --> Patient : "queries"
+
+ScheduleController --> Schedule : "queries"
+ScheduleController --> Doctor : "queries"
+ScheduleController --> Department : "queries"
+
+WaitlistController --> Waitlist : "manages"
+WaitlistController --> Patient : "queries"
+
+AvailabilityController --> Schedule : "queries"
+AvailabilityController --> TimeSlot : "queries"
+
+BookingController --> Appointment : "manages"
+BookingController --> Patient : "queries"
+
+' 实体层内部关系
+Appointment ||--|| Patient : "belongs to"
+Appointment ||--|| Schedule : "books"
+Waitlist ||--|| Patient : "belongs to"
+Waitlist ||--|| Schedule : "waits for"
+Schedule ||--|| Doctor : "assigned to"
+Schedule ||--|| Department : "belongs to"
+Schedule ||--|| TimeSlot : "uses"
+Notification ||--|| Patient : "notifies"
+
+@enduml

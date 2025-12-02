@@ -1,0 +1,173 @@
+{
+	"pages": [
+		{
+			"path": "pages/login/patient-login",
+			"style": {
+				"navigationBarTitleText": "患者登录",
+				"navigationBarBackgroundColor": "#FFFFFF",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#FFFFFF"
+			}
+		},
+		{
+			"path": "pages/index/index",
+			"style": {
+				"backgroundColor": "#F8F8F8",
+				"navigationBarBackgroundColor": "#F8F8F8",
+				"navigationBarTextStyle": "black",
+				"navigationBarTitleText": "首页",
+				"enablePullDownRefresh": true,
+				"backgroundTextStyle": "dark"
+			}
+		},
+		{
+			"path": "pages/departments/departments",
+			"style": {
+				"navigationBarTitleText": "选择科室",
+				"navigationBarBackgroundColor": "#4FD9C3",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/schedules/schedules",
+			"style": {
+				"navigationBarTitleText": "医生排班",
+				"navigationBarBackgroundColor": "#4FD9C3",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/appointment/confirm",
+			"style": {
+				"navigationBarTitleText": "预约确认",
+				"navigationBarBackgroundColor": "#4FD9C3",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/appointments/appointments",
+			"style": {
+				"navigationBarTitleText": "我的预约",
+				"navigationBarBackgroundColor": "#FFFFFF",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/messages/messages",
+			"style": {
+				"navigationBarTitleText": "消息中心",
+				"navigationBarBackgroundColor": "#FFFFFF",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#F8F8F8",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/profile/profile",
+			"style": {
+				"navigationBarTitleText": "个人中心",
+				"navigationBarBackgroundColor": "#FFFFFF",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/messages/message-conversation",
+			"style": {
+				"navigationBarTitleText": "对话详情",
+				"navigationBarBackgroundColor": "#FFFFFF",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/appointment/detail",
+			"style": {
+				"navigationBarTitleText": "预约详情",
+				"navigationBarBackgroundColor": "#4FD9C3",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/payment/payment",
+			"style": {
+				"navigationBarTitleText": "支付挂号费",
+				"navigationBarBackgroundColor": "#4FD9C3",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/doctor/doctor-detail",
+			"style": {
+				"navigationBarTitleText": "医生简介",
+				"navigationBarBackgroundColor": "#4FD9C3",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/waitlist/waitlist",
+			"style": {
+				"navigationBarTitleText": "我的候补",
+				"navigationBarBackgroundColor": "#4FD9C3",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/waitlist/waitlist-detail",
+			"style": {
+				"navigationBarTitleText": "候补详情",
+				"navigationBarBackgroundColor": "#4FD9C3",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "pages/navigation/index",
+			"style": {
+				"navigationBarTitleText": "室内导航",
+				"navigationBarBackgroundColor": "#4FD9C3",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#F8F8F8"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "校医院挂号系统",
+		"navigationBarBackgroundColor": "#FFFFFF",
+		"backgroundColor": "#FFFFFF"
+	},
+	"tabBar": {
+		"color": "#999999",
+		"selectedColor": "#38A2AC",
+		"backgroundColor": "#FFFFFF",
+		"borderStyle": "black",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "首页"
+			},
+			{
+				"pagePath": "pages/appointments/appointments",
+				"text": "我的预约"
+			},
+			{
+				"pagePath": "pages/messages/messages",
+				"text": "消息"
+			},
+			{
+				"pagePath": "pages/profile/profile",
+				"text": "我的"
+			}
+		]
+	},
+	"uniIdRouter": {}
+}

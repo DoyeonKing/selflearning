@@ -1,0 +1,101 @@
+@startuml 患者挂号流程时序图
+
+!theme plain
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 60
+
+actor "患者" as Patient
+participant "挂号服务" as RegistrationService
+participant "科室管理" as DepartmentService
+participant "排班管理" as ScheduleService
+participant "预约管理" as AppointmentService
+participant "候补管理" as WaitlistService
+participant "支付服务" as PaymentService
+participant "通知服务" as NotificationService
+
+== 患者挂号流程 ==
+
+Patient -> RegistrationService: 开始挂号
+activate RegistrationService
+
+Patient -> RegistrationService: 选择科室
+RegistrationService -> DepartmentService: 获取科室信息
+DepartmentService --> RegistrationService: 返回科室列表
+RegistrationService --> Patient: 显示科室选择
+
+Patient -> RegistrationService: 选择时间段
+RegistrationService -> ScheduleService: 获取可用排班
+ScheduleService -> ScheduleService: 查询时间段和诊室信息
+ScheduleService --> RegistrationService: 返回可用排班列表
+RegistrationService --> Patient: 显示排班选择
+
+Patient -> RegistrationService: 选择排班
+RegistrationService -> ScheduleService: 检查排班余量
+ScheduleService -> ScheduleService: 检查total_slots vs booked_slots
+ScheduleService --> RegistrationService: 返回排班信息
+
+alt 排班有余量 (total_slots > booked_slots)
+    RegistrationService -> AppointmentService: 创建预约挂号
+    activate AppointmentService
+    AppointmentService -> AppointmentService: 生成appointment_number
+    AppointmentService --> RegistrationService: 返回预约信息
+    RegistrationService --> Patient: 确认就诊信息
+    Patient -> RegistrationService: 确认就诊信息
+    RegistrationService -> PaymentService: 处理支付
+    activate PaymentService
+    PaymentService -> PaymentService: 验证支付信息
+    PaymentService --> RegistrationService: 支付结果
+    deactivate PaymentService
+    RegistrationService -> AppointmentService: 更新支付状态
+    AppointmentService -> AppointmentService: 更新payment_status=paid
+    AppointmentService --> RegistrationService: 预约完成
+    deactivate AppointmentService
+    RegistrationService -> NotificationService: 发送预约确认通知
+    activate NotificationService
+    NotificationService -> NotificationService: 创建通知记录
+    NotificationService --> RegistrationService: 通知发送成功
+    deactivate NotificationService
+    RegistrationService --> Patient: 挂号成功
+else 排班无余量 (total_slots <= booked_slots)
+    RegistrationService -> PaymentService: 处理支付
+    activate PaymentService
+    PaymentService -> PaymentService: 验证支付信息
+    PaymentService --> RegistrationService: 支付结果
+    deactivate PaymentService
+    RegistrationService -> WaitlistService: 创建候补申请
+    activate WaitlistService
+    WaitlistService -> WaitlistService: 创建waitlist记录
+    WaitlistService --> RegistrationService: 返回候补信息
+    RegistrationService --> Patient: 确认候补信息
+    Patient -> RegistrationService: 确认候补信息
+    WaitlistService -> WaitlistService: 更新候补状态
+    deactivate WaitlistService
+    
+    RegistrationService -> WaitlistService: 检查候补状态
+    activate WaitlistService
+    WaitlistService -> WaitlistService: 查询候补队列
+    WaitlistService --> RegistrationService: 候补状态
+    
+    alt 候补成功 (有号源释放)
+        RegistrationService -> NotificationService: 发送候补成功通知
+        activate NotificationService
+        NotificationService -> NotificationService: 发送SMS短信
+        NotificationService -> NotificationService: 创建通知记录
+        NotificationService --> RegistrationService: 通知发送成功
+        deactivate NotificationService
+        RegistrationService --> Patient: 候补成功通知
+    else 候补失败 (无号源释放)
+        RegistrationService -> NotificationService: 发送候补失败通知
+        activate NotificationService
+        NotificationService -> NotificationService: 创建通知记录
+        NotificationService --> RegistrationService: 通知发送成功
+        deactivate NotificationService
+        RegistrationService --> Patient: 候补失败通知
+    end
+    deactivate WaitlistService
+end
+
+deactivate RegistrationService
+
+@enduml

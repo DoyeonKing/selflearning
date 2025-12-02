@@ -1,0 +1,356 @@
+@startuml
+!theme plain
+title 手动拖拽排班系统类图
+
+' 定义包和分层
+package "接口层 (Interface Layer)" {
+  ' 用户界面接口
+  interface IScheduleDashboard {
+    + displayScheduleTable()
+    + displayDoctorCards()
+    + displayTimeSlotCards()
+    + displayLocationCards()
+    + showConflictSummary()
+    + updateVisualFeedback()
+  }
+  
+  ' 拖拽操作接口
+  interface IDragDropHandler {
+    + onDragStart(event, item)
+    + onDrop(event, toDate, toShift)
+    + handleDoctorDrop(dragData, toDate, toShift)
+    + handleLocationDrop(dragData, toDate, toShift, targetElement)
+    + handleTimeSlotDrop(dragData, toDate, toShift)
+  }
+  
+  ' 冲突显示接口
+  interface IConflictDisplay {
+    + showConflictDetails(doctor, date, shift)
+    + getDoctorConflictClass(doctor, date, shift)
+    + hasDoctorConflicts(doctor, date, shift)
+    + getDoctorConflictIconClass(doctor, date, shift)
+  }
+  
+  ' 日历视图接口
+  interface ICalendarView {
+    + convertScheduleToEvents()
+    + handleEventClick(info)
+    + handleDateClick(info)
+    + handleCalendarDrop(info)
+    + handleEventDrop(info)
+    + handleEventResize(info)
+  }
+}
+
+package "控制层 (Control Layer)" {
+  ' 排班管理控制器
+  class ScheduleController {
+    - scheduleData: Map<string, Schedule[]>
+    - activeSub: string
+    - currentMonday: Date
+    - currentView: string
+    --
+    + selectDepartment(departmentId: string)
+    + addDoctorToShift(doctor: Doctor, date: string, shift: string)
+    + removeDoctorFromShift(doctor: Doctor, date: string, shift: string)
+    + addTimeSlotToShift(timeSlot: TimeSlot, date: string, shift: string)
+    + assignLocationToDoctor(doctor: Doctor, location: Location)
+    + clearLocation(doctor: Doctor)
+    + changeWeek(offset: number)
+    + changeView(viewType: string)
+  }
+  
+  ' 冲突检测控制器
+  class ConflictDetectionController {
+    - conflictData: ConflictData
+    - detectionRules: ConflictRule[]
+    --
+    + detectAllConflicts()
+    + detectDoctorDoubleBooking(schedules: Schedule[])
+    + detectOfficeConflicts(schedules: Schedule[])
+    + detectDoctorMultiOfficeConflicts(schedules: Schedule[])
+    + detectWorkDurationConflicts(schedules: Schedule[])
+    + detectRestTimeConflicts(schedules: Schedule[])
+    + detectTimeSlotOverlapConflicts(schedules: Schedule[])
+    + validateTimeSlotMatchShift(timeSlot: TimeSlot, shift: string)
+  }
+  
+  ' 拖拽操作控制器
+  class DragDropController {
+    - dragData: DragData
+    - timeSlotColumns: Map<string, TimeSlot[]>
+    --
+    + onDragStart(event: DragEvent, item: DragItem)
+    + onDrop(event: DragEvent, toDate: string, toShift: string)
+    + handleDoctorDrop(dragData: DragData, toDate: string, toShift: string)
+    + handleLocationDrop(dragData: DragData, toDate: string, toShift: string, targetElement: Element)
+    + handleTimeSlotDrop(dragData: DragData, toDate: string, toShift: string)
+    + removeTimeSlotFromColumn(timeSlot: TimeSlot, shift: string)
+    + clearTimeSlotColumns()
+  }
+  
+  ' 日历控制器
+  class CalendarController {
+    - calendarEvents: CalendarEvent[]
+    - fullCalendar: FullCalendar
+    --
+    + convertScheduleToEvents()
+    + handleEventClick(info: EventClickArg)
+    + handleDateClick(info: DateClickArg)
+    + handleCalendarDrop(info: DropArg)
+    + handleEventDrop(info: EventDropArg)
+    + handleEventResize(info: EventResizeArg)
+    + updateScheduleDate(eventId: string, newDate: string)
+    + addDoctorToSchedule(date: string, shift: string, doctor: Doctor)
+  }
+}
+
+package "实体层 (Entity Layer)" {
+  ' 医生实体
+  class Doctor {
+    - id: number
+    - identifier: string
+    - name: string
+    - title: string
+    - gender: string
+    - location: string
+    --
+    + getId(): number
+    + getIdentifier(): string
+    + getName(): string
+    + getTitle(): string
+    + getGender(): string
+    + getLocation(): string
+    + setLocation(location: string)
+    + clearLocation()
+  }
+  
+  ' 时间段实体
+  class TimeSlot {
+    - slot_id: number
+    - slot_name: string
+    - start_time: string
+    - end_time: string
+    - period: string
+    --
+    + getSlotId(): number
+    + getSlotName(): string
+    + getStartTime(): string
+    + getEndTime(): string
+    + getPeriod(): string
+    + isTimeSlotMatchShift(shift: string): boolean
+  }
+  
+  ' 办公地点实体
+  class Location {
+    - location_id: number
+    - name: string
+    - building: string
+    - floor: string
+    - room_number: string
+    --
+    + getLocationId(): number
+    + getName(): string
+    + getBuilding(): string
+    + getFloor(): string
+    + getRoomNumber(): string
+  }
+  
+  ' 科室实体
+  class Department {
+    - id: string
+    - name: string
+    - code: string
+    - children: Department[]
+    --
+    + getId(): string
+    + getName(): string
+    + getCode(): string
+    + getChildren(): Department[]
+    + addChild(department: Department)
+  }
+  
+  ' 排班实体
+  class Schedule {
+    - date: string
+    - shift: string
+    - doctors: Doctor[]
+    - timeSlots: TimeSlot[]
+    --
+    + getDate(): string
+    + getShift(): string
+    + getDoctors(): Doctor[]
+    + getTimeSlots(): TimeSlot[]
+    + addDoctor(doctor: Doctor)
+    + removeDoctor(doctor: Doctor)
+    + addTimeSlot(timeSlot: TimeSlot)
+    + removeTimeSlot(timeSlot: TimeSlot)
+  }
+  
+  ' 冲突实体
+  class Conflict {
+    - type: string
+    - severity: string
+    - title: string
+    - description: string
+    - details: string[]
+    - doctorId: number
+    - date: string
+    - shift: string
+    - location: string
+    --
+    + getType(): string
+    + getSeverity(): string
+    + getTitle(): string
+    + getDescription(): string
+    + getDetails(): string[]
+    + getDoctorId(): number
+    + getDate(): string
+    + getShift(): string
+    + getLocation(): string
+  }
+  
+  ' 冲突数据实体
+  class ConflictData {
+    - hasConflicts: boolean
+    - conflicts: Conflict[]
+    - summary: ConflictSummary
+    --
+    + hasConflicts(): boolean
+    + getConflicts(): Conflict[]
+    + getSummary(): ConflictSummary
+    + addConflict(conflict: Conflict)
+    + clearConflicts()
+    + updateSummary()
+  }
+  
+  ' 冲突汇总实体
+  class ConflictSummary {
+    - total: number
+    - critical: number
+    - warning: number
+    --
+    + getTotal(): number
+    + getCritical(): number
+    + getWarning(): number
+    + setTotal(total: number)
+    + setCritical(critical: number)
+    + setWarning(warning: number)
+  }
+  
+  ' 拖拽数据实体
+  class DragData {
+    - type: string
+    - data: any
+    - source: DragSource
+    --
+    + getType(): string
+    + getData(): any
+    + getSource(): DragSource
+    + setType(type: string)
+    + setData(data: any)
+    + setSource(source: DragSource)
+  }
+  
+  ' 拖拽源实体
+  class DragSource {
+    - date: string
+    - shift: string
+    --
+    + getDate(): string
+    + getShift(): string
+    + setDate(date: string)
+    + setShift(shift: string)
+  }
+  
+  ' 日历事件实体
+  class CalendarEvent {
+    - id: string
+    - title: string
+    - start: Date
+    - end: Date
+    - backgroundColor: string
+    - borderColor: string
+    - className: string
+    - extendedProps: EventExtendedProps
+    --
+    + getId(): string
+    + getTitle(): string
+    + getStart(): Date
+    + getEnd(): Date
+    + getBackgroundColor(): string
+    + getBorderColor(): string
+    + getClassName(): string
+    + getExtendedProps(): EventExtendedProps
+  }
+  
+  ' 事件扩展属性实体
+  class EventExtendedProps {
+    - doctorId: number
+    - doctorTitle: string
+    - location: string
+    - shift: string
+    - departmentId: string
+    - hasConflict: boolean
+    --
+    + getDoctorId(): number
+    + getDoctorTitle(): string
+    + getLocation(): string
+    + getShift(): string
+    + getDepartmentId(): string
+    + hasConflict(): boolean
+  }
+}
+
+' 关系定义
+' 控制层与实体层的关系
+ScheduleController --> Doctor : manages
+ScheduleController --> TimeSlot : manages
+ScheduleController --> Location : manages
+ScheduleController --> Department : manages
+ScheduleController --> Schedule : manages
+
+ConflictDetectionController --> Conflict : creates
+ConflictDetectionController --> ConflictData : manages
+ConflictDetectionController --> ConflictSummary : updates
+
+DragDropController --> DragData : creates
+DragDropController --> DragSource : creates
+DragDropController --> TimeSlot : manipulates
+
+CalendarController --> CalendarEvent : creates
+CalendarController --> EventExtendedProps : creates
+
+' 接口层与控制层的关系
+IScheduleDashboard ..> ScheduleController : uses
+IDragDropHandler ..> DragDropController : uses
+IConflictDisplay ..> ConflictDetectionController : uses
+ICalendarView ..> CalendarController : uses
+
+' 实体层内部关系
+Schedule --> Doctor : contains 0..*
+Schedule --> TimeSlot : contains 0..*
+Doctor --> Location : assigned to 0..1
+Conflict --> Doctor : references
+ConflictData --> Conflict : contains 0..*
+ConflictData --> ConflictSummary : contains 1
+CalendarEvent --> EventExtendedProps : contains 1
+
+' 泛化关系
+Conflict <|-- DoctorDoubleBookingConflict
+Conflict <|-- OfficeConflict
+Conflict <|-- DoctorMultiOfficeConflict
+Conflict <|-- WorkDurationConflict
+Conflict <|-- RestTimeConflict
+Conflict <|-- TimeSlotOverlapConflict
+
+' 组合关系
+ScheduleController *-- ConflictDetectionController
+ScheduleController *-- DragDropController
+ScheduleController *-- CalendarController
+
+@enduml
+
+
+
+

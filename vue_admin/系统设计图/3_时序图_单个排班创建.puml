@@ -1,0 +1,111 @@
+@startuml 单个排班创建时序图
+
+title 场景一：管理员创建单个班次 - 时序图
+
+actor 管理员 as Admin
+participant "前端界面" as Frontend
+participant "后端API" as Backend
+database "doctors表" as DoctorsDB
+database "time_slots表" as TimeSlotsDB
+database "locations表" as LocationsDB
+database "schedules表" as SchedulesDB
+
+== 初始化页面 ==
+Admin -> Frontend : 打开排班管理页面
+activate Frontend
+
+Frontend -> Backend : GET /api/doctors\n获取医生列表
+activate Backend
+Backend -> DoctorsDB : SELECT * FROM doctors\nWHERE status='active'
+activate DoctorsDB
+DoctorsDB --> Backend : 返回医生数据
+deactivate DoctorsDB
+Backend --> Frontend : 医生列表JSON
+deactivate Backend
+
+Frontend -> Backend : GET /api/time-slots\n获取时间段列表
+activate Backend
+Backend -> TimeSlotsDB : SELECT * FROM time_slots
+activate TimeSlotsDB
+TimeSlotsDB --> Backend : 返回时间段数据
+deactivate TimeSlotsDB
+Backend --> Frontend : 时间段列表JSON
+deactivate Backend
+
+Frontend -> Backend : GET /api/locations\n获取诊室列表
+activate Backend
+Backend -> LocationsDB : SELECT * FROM locations\nWHERE status='available'
+activate LocationsDB
+LocationsDB --> Backend : 返回诊室数据
+deactivate LocationsDB
+Backend --> Frontend : 诊室列表JSON
+deactivate Backend
+
+Frontend --> Admin : 显示排班表单\n(医生/日期/时间段/地点/号源/费用)
+deactivate Frontend
+
+== 填写排班信息 ==
+Admin -> Frontend : 选择医生: 张医生(ID=5)
+Admin -> Frontend : 选择日期: 2025-11-10
+Admin -> Frontend : 选择时间段: 上午08:00-08:30(ID=1)
+Admin -> Frontend : 选择诊室: 门诊楼-301(ID=12)
+Admin -> Frontend : 输入号源: 10个
+Admin -> Frontend : 输入费用: 25.00元
+
+== 提交创建请求 ==
+Admin -> Frontend : 点击"保存"按钮
+activate Frontend
+
+Frontend -> Frontend : 前端数据验证\n(非空、格式检查)
+
+alt 验证失败
+    Frontend --> Admin : 显示错误提示
+    deactivate Frontend
+else 验证通过
+    Frontend -> Backend : POST /api/schedules/create\n{\n  doctor_id: 5,\n  schedule_date: "2025-11-10",\n  slot_id: 1,\n  location_id: 12,\n  total_slots: 10,\n  fee: 25.00\n}
+    activate Backend
+    
+    == 后端业务逻辑处理 ==
+    Backend -> Backend : 参数验证
+    
+    Backend -> SchedulesDB : 检查冲突\nSELECT * FROM schedules\nWHERE doctor_id=5\nAND schedule_date='2025-11-10'\nAND slot_id=1
+    activate SchedulesDB
+    SchedulesDB --> Backend : 返回查询结果
+    deactivate SchedulesDB
+    
+    alt 发现冲突（该医生同时间已有排班）
+        Backend --> Frontend : 返回错误\n{error: "医生在该时间段已有排班"}
+        Frontend --> Admin : 显示冲突提示
+        deactivate Backend
+        deactivate Frontend
+    else 无冲突
+        Backend -> SchedulesDB : 插入新排班记录\nINSERT INTO schedules\n(doctor_id, schedule_date,\nslot_id, location_id,\ntotal_slots, booked_slots,\nfee, status)\nVALUES (5, '2025-11-10',\n1, 12, 10, 0, 25.00, 'available')
+        activate SchedulesDB
+        SchedulesDB --> Backend : 插入成功\nschedule_id=1001
+        deactivate SchedulesDB
+        
+        Backend -> Backend : 记录操作日志
+        
+        Backend --> Frontend : 返回成功\n{\n  success: true,\n  schedule_id: 1001,\n  message: "排班创建成功"\n}
+        deactivate Backend
+        
+        Frontend --> Admin : 显示成功提示\n刷新排班列表
+        deactivate Frontend
+    end
+end
+
+== 自动冲突检测 ==
+Frontend -> Backend : GET /api/schedules/conflicts\n检测所有排班冲突
+activate Backend
+Backend -> SchedulesDB : 执行冲突检测查询
+activate SchedulesDB
+SchedulesDB --> Backend : 返回冲突数据
+deactivate SchedulesDB
+Backend --> Frontend : 冲突列表JSON
+deactivate Backend
+Frontend --> Admin : 高亮显示冲突（如有）
+
+@enduml
+
+
+

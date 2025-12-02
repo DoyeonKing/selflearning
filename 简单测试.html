@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>简单测试</title>
+</head>
+<body>
+    <h1>二维码API测试</h1>
+    <button onclick="test()">测试连接</button>
+    <div id="result"></div>
+    
+    <script>
+        async function test() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '正在测试...';
+            
+            try {
+                // 测试1: 直接访问API
+                const response = await fetch('http://localhost:8080/api/qrcode/nodes', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+                
+                const data = await response.json();
+                resultDiv.innerHTML = '<h2>✅ 成功！</h2><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                resultDiv.innerHTML = '<h2>❌ 错误</h2><pre>' + error.message + '</pre><p>可能的原因：<br>1. 后端没启动<br>2. 端口不对<br>3. 跨域问题</p>';
+            }
+        }
+        
+        // 页面加载时自动测试
+        window.onload = test;
+    </script>
+</body>
+</html>
+
+
+
+
+

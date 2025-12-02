@@ -1,0 +1,157 @@
+{
+  "info": {
+    "name": "叫号功能测试",
+    "description": "医院叫号系统API测试集合",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. 获取叫号队列",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/appointments/schedule/{{scheduleId}}/call-queue",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "appointments", "schedule", "{{scheduleId}}", "call-queue"]
+        },
+        "description": "获取某个排班的所有已签到但未就诊的预约，按排序规则返回"
+      },
+      "response": []
+    },
+    {
+      "name": "2. 获取下一个叫号",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/appointments/schedule/{{scheduleId}}/next-to-call",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "appointments", "schedule", "{{scheduleId}}", "next-to-call"]
+        },
+        "description": "获取下一个应该叫号的预约"
+      },
+      "response": []
+    },
+    {
+      "name": "3. 执行叫号",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/appointments/{{appointmentId}}/call",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "appointments", "{{appointmentId}}", "call"]
+        },
+        "description": "执行叫号，标记预约为已叫号"
+      },
+      "response": []
+    },
+    {
+      "name": "4. 过号后重新签到",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/appointments/{{appointmentId}}/recheck-in",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "appointments", "{{appointmentId}}", "recheck-in"]
+        },
+        "description": "过号后重新签到，就诊序号不变，但排到队列后面"
+      },
+      "response": []
+    },
+    {
+      "name": "5. 生成二维码（用于签到）",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/appointments/{{appointmentId}}/qr-code",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "appointments", "{{appointmentId}}", "qr-code"]
+        },
+        "description": "生成预约二维码Token，用于签到"
+      },
+      "response": []
+    },
+    {
+      "name": "6. 扫码签到",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"qrToken\": \"{{qrToken}}\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8080/api/appointments/check-in",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "appointments", "check-in"]
+        },
+        "description": "使用二维码Token进行签到"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "scheduleId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "appointmentId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "qrToken",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

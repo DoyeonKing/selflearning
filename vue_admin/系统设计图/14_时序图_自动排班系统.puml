@@ -1,0 +1,192 @@
+@startuml
+!theme plain
+title 自动排班系统时序图
+
+actor "管理员" as Admin
+participant "自动排班界面" as Dashboard
+participant "文件上传处理器" as FileHandler
+participant "自动排班控制器" as AutoController
+participant "排班算法引擎" as Algorithm
+participant "约束验证器" as Validator
+participant "冲突解决器" as Resolver
+participant "进度控制器" as Progress
+participant "结果显示器" as Display
+participant "排班数据" as ScheduleData
+
+== 1. 选择科室阶段 ==
+Admin -> Dashboard: 选择要排班的科室(父科室、子科室)
+activate Dashboard
+Dashboard -> AutoController: selectDepartment(departmentId)
+activate AutoController
+AutoController -> ScheduleData: 获取科室信息
+ScheduleData --> AutoController: 返回科室数据
+AutoController --> Dashboard: 科室选择完成
+deactivate AutoController
+Dashboard --> Admin: 显示科室信息
+deactivate Dashboard
+
+== 2. 上传约束信息阶段 ==
+Admin -> Dashboard: 上传医生请假、调班等信息
+activate Dashboard
+Dashboard -> FileHandler: uploadConstraints(file)
+activate FileHandler
+
+FileHandler -> FileHandler: validateFileFormat(file)
+alt 文件格式有效
+    FileHandler -> FileHandler: parseExcelFile(file)
+    FileHandler -> FileHandler: parseCSVFile(file)
+    FileHandler -> Validator: validateParsedData(parsedData)
+    activate Validator
+    
+    Validator -> Validator: validateLeaveConstraints(leaveRequests)
+    Validator -> Validator: validateShiftConstraints(shiftRequests)
+    Validator -> Validator: validateWorkloadConstraints(workloads)
+    Validator -> Validator: validateAvailabilityConstraints(availabilities)
+    
+    alt 验证通过
+        Validator --> FileHandler: 返回验证结果
+        FileHandler --> Dashboard: 上传成功
+    else 验证失败
+        Validator --> FileHandler: 返回验证错误
+        FileHandler --> Dashboard: 显示错误信息
+        Dashboard --> Admin: 提示修正文件
+    end
+    deactivate Validator
+else 文件格式无效
+    FileHandler --> Dashboard: 文件格式错误
+    Dashboard --> Admin: 提示重新上传
+end
+deactivate FileHandler
+deactivate Dashboard
+
+== 3. 自动生成排班阶段 ==
+Admin -> Dashboard: 开始自动排班
+activate Dashboard
+Dashboard -> AutoController: generateSchedule()
+activate AutoController
+
+AutoController -> Progress: startProgress(totalSteps)
+activate Progress
+Progress --> AutoController: 进度跟踪开始
+
+AutoController -> Algorithm: generateOptimalSchedule(constraints)
+activate Algorithm
+
+Algorithm -> Algorithm: applyConstraints(schedule, constraints)
+Algorithm -> Algorithm: optimizeSchedule(schedule)
+Algorithm -> Algorithm: validateScheduleRules(schedule)
+
+alt 排班生成成功
+    Algorithm --> AutoController: 返回排班结果
+    AutoController -> Progress: updateProgress(step, "排班生成完成")
+    Progress --> AutoController: 进度更新
+    
+    AutoController -> Resolver: detectConflicts(schedule)
+    activate Resolver
+    
+    alt 发现冲突
+        Resolver -> Resolver: resolveConflicts(conflicts)
+        Resolver -> Resolver: suggestAlternatives(conflict)
+        Resolver --> AutoController: 返回冲突解决结果
+        AutoController -> Progress: updateProgress(step, "冲突解决完成")
+        Progress --> AutoController: 进度更新
+    else 无冲突
+        Resolver --> AutoController: 无冲突
+    end
+    deactivate Resolver
+    
+    AutoController -> Progress: updateProgress(step, "排班优化完成")
+    Progress --> AutoController: 进度更新
+    
+    AutoController -> AutoController: 计算排班统计信息
+    AutoController -> AutoController: 计算质量评分
+    
+    AutoController --> Dashboard: 返回完整排班结果
+    AutoController -> Progress: completeProgress()
+    Progress --> AutoController: 进度完成
+    deactivate Progress
+    
+else 排班生成失败
+    Algorithm --> AutoController: 生成失败
+    AutoController -> Progress: handleError(error)
+    Progress --> AutoController: 错误处理完成
+    AutoController --> Dashboard: 返回错误信息
+    deactivate Progress
+end
+deactivate Algorithm
+deactivate AutoController
+
+== 4. 显示排班结果阶段 ==
+Dashboard -> Display: displayScheduleResults(scheduleResult)
+activate Display
+
+Display -> Display: displayDoctorCards()
+Display -> Display: displayTimeSlotCards()
+Display -> Display: displayLocationCards()
+
+alt 存在冲突
+    Display -> Display: highlightConflicts()
+    Display -> Display: showConflictSummary()
+end
+
+Display -> Display: showSchedulingSummary()
+Display --> Dashboard: 结果显示完成
+deactivate Display
+
+Dashboard --> Admin: 显示医生信息卡、时间段卡片、办公地点卡片
+deactivate Dashboard
+
+== 5. 手动调整阶段 ==
+Admin -> Dashboard: 手动调整排班信息
+activate Dashboard
+
+loop 管理员调整排班
+    Admin -> Dashboard: 拖拽调整医生排班
+    Dashboard -> AutoController: updateSchedule(adjustments)
+    activate AutoController
+    
+    AutoController -> Validator: validateSchedule(schedule)
+    activate Validator
+    Validator --> AutoController: 验证结果
+    deactivate Validator
+    
+    alt 调整有效
+        AutoController -> ScheduleData: 保存排班数据
+        ScheduleData --> AutoController: 保存成功
+        AutoController --> Dashboard: 调整成功
+        Dashboard --> Admin: 显示调整结果
+    else 调整无效
+        AutoController --> Dashboard: 调整无效
+        Dashboard --> Admin: 提示调整错误
+    end
+    deactivate AutoController
+end
+
+Dashboard -> Display: updateDisplay()
+activate Display
+Display -> Display: refreshDoctorCards()
+Display -> Display: refreshTimeSlotCards()
+Display -> Display: refreshLocationCards()
+Display --> Dashboard: 显示更新完成
+deactivate Display
+
+Dashboard --> Admin: 排班调整完成
+deactivate Dashboard
+
+== 6. 完成排班 ==
+Admin -> Dashboard: 确认排班结果
+activate Dashboard
+Dashboard -> AutoController: finalizeSchedule()
+activate AutoController
+AutoController -> ScheduleData: 保存最终排班
+ScheduleData --> AutoController: 保存完成
+AutoController --> Dashboard: 排班完成
+deactivate AutoController
+Dashboard --> Admin: 自动排班流程结束
+deactivate Dashboard
+
+@enduml
+
+
+
+

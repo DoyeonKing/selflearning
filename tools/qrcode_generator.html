@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>医院导航二维码生成器</title>
+    <!-- 多个CDN备用源，确保库能加载 -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" onerror="loadQRCodeFallback()"></script>
+    <script>
+        // 备用CDN加载函数
+        function loadQRCodeFallback() {
+            console.log('主CDN加载失败，尝试备用CDN...');
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js';
+            script.onload = function() {
+                console.log('备用CDN加载成功');
+            };
+            script.onerror = function() {
+                console.log('备用CDN1失败，尝试备用CDN2...');
+                const script2 = document.createElement('script');
+                script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js';
+                script2.onload = function() {
+                    console.log('备用CDN2加载成功');
+                };
+                script2.onerror = function() {
+                    console.warn('所有CDN都加载失败，将使用在线API作为备用方案');
+                    window.QRCodeFallback = true;
+                };
+                document.head.appendChild(script2);
+            };
+            document.head.appendChild(script);
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .nodes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .qrcode-item {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .qrcode-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .qrcode-item h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        .qrcode-item .content {
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 15px;
+            word-break: break-all;
+            padding: 5px;
+            background: white;
+            border-radius: 5px;
+        }
+        
+        .qrcode-item canvas {
+            width: 150px;
+            height: 150px;
+            margin: 10px auto;
+            display: block;
+            border: 5px solid white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .qrcode-item .loading {
+            width: 150px;
+            height: 150px;
+            margin: 10px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f0f0f0;
+            border-radius: 10px;
+            color: #666;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .download-btn:hover {
+            background: #5568d3;
+        }
+        
+        .instructions {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        
+        .instructions h2 {
+            color: #1976D2;
+            margin-bottom: 15px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+            line-height: 2;
+        }
+        
+        .instructions li {
+            margin-bottom: 10px;
+        }
+        
+        .custom-generator {
+            background: #fff3e0;
+            border-left: 4px solid #FF9800;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .custom-generator h2 {
+            color: #F57C00;
+            margin-bottom: 15px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: bold;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #FF9800;
+        }
+        
+        .generate-btn {
+            padding: 12px 30px;
+            background: #FF9800;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .generate-btn:hover {
+            background: #F57C00;
+        }
+        
+        .custom-result {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏥 医院导航二维码生成器</h1>
+        <p class="subtitle">生成定位二维码，用于扫码定位功能（从数据库真实位置数据生成）</p>
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+            <button class="generate-btn" onclick="refreshLocations()" style="background: #28a745;">
+                🔄 刷新位置数据（从数据库重新加载）
+            </button>
+        </div>
+        
+        <div class="nodes-grid" id="qrcodeGrid">
+            <!-- 二维码将通过JavaScript动态生成 -->
+        </div>
+        
+        <div class="custom-generator">
+            <h2>📝 自定义二维码生成</h2>
+            <div class="input-group">
+                <label>节点ID（map_node_id）：</label>
+                <input type="number" id="customNodeId" placeholder="例如: 5（对应数据库中的map_node_id）" min="1">
+            </div>
+            <div class="input-group">
+                <label>位置名称（可选）：</label>
+                <input type="text" id="customNodeName" placeholder="例如: 门诊楼201室（如果不填，将使用'节点ID'）">
+            </div>
+            <button class="generate-btn" onclick="generateCustomQR()">生成二维码</button>
+            <div class="custom-result" id="customResult"></div>
+        </div>
+        
+        <div class="instructions">
+            <h2>📋 使用说明</h2>
+            <ol>
+                <li><strong>点击"下载"按钮</strong>保存二维码图片</li>
+                <li><strong>打印二维码</strong>（建议尺寸：5cm × 5cm 或更大）</li>
+                <li><strong>在医院对应位置张贴</strong>（高度：1.5-2米）</li>
+                <li>在导航页面点击<strong>"📷 扫码定位"</strong>扫描二维码</li>
+                <li>系统会自动定位到对应位置</li>
+            </ol>
+        </div>
+    </div>
+    
+    <script>
+        // 从数据库获取的节点列表（将从API加载）
+        let nodes = [];
+        
+        // 从后端API获取所有节点数据（包括location和途径点）
+        async function loadLocationsFromAPI() {
+            try {
+                // 1. 获取所有location（目的地）
+                const locationResponse = await fetch('http://localhost:8080/api/locations');
+                let locationNodes = [];
+                if (locationResponse.ok) {
+                    const locations = await locationResponse.json();
+                    locationNodes = locations
+                        .filter(loc => loc.mapNodeId != null && loc.mapNodeId > 0)
+                        .map(loc => ({
+                            nodeId: loc.mapNodeId,
+                            name: loc.locationName || `${loc.building || ''}${loc.roomNumber || ''}`.trim() || `位置${loc.locationId}`,
+                            locationId: loc.locationId,
+                            building: loc.building,
+                            roomNumber: loc.roomNumber,
+                            floorLevel: loc.floorLevel,
+                            nodeType: 'ROOM',
+                            typeName: '诊室'
+                        }));
+                }
+                
+                // 2. 获取所有途径点（走廊、电梯、楼梯等）
+                const waypointResponse = await fetch('http://localhost:8080/api/map/nodes/waypoints');
+                let waypointNodes = [];
+                if (waypointResponse.ok) {
+                    const result = await waypointResponse.json();
+                    if (result.code === '200' && result.data) {
+                        waypointNodes = result.data.map(node => ({
+                            nodeId: node.nodeId,
+                            name: node.nodeName,
+                            nodeType: node.nodeType || 'HALLWAY',
+                            typeName: getNodeTypeName(node.nodeType),
+                            floorLevel: node.floorLevel,
+                            coordinatesX: node.coordinatesX,
+                            coordinatesY: node.coordinatesY
+                        }));
+                    }
+                }
+                
+                // 3. 合并所有节点
+                nodes = [...locationNodes, ...waypointNodes];
+                
+                console.log(`成功加载 ${locationNodes.length} 个目的地节点和 ${waypointNodes.length} 个途径点`);
+                return true;
+            } catch (error) {
+                console.error('从API加载节点数据失败:', error);
+                // 如果API失败，使用默认示例数据
+                nodes = [
+                    {nodeId: 1, name: "医院大门", nodeType: 'ENTRANCE', typeName: '入口'},
+                    {nodeId: 2, name: "分诊台", nodeType: 'HALLWAY', typeName: '走廊'},
+                    {nodeId: 3, name: "电梯口", nodeType: 'ELEVATOR', typeName: '电梯'},
+                    {nodeId: 4, name: "内科诊室", nodeType: 'ROOM', typeName: '诊室'},
+                    {nodeId: 5, name: "外科诊室", nodeType: 'ROOM', typeName: '诊室'},
+                ];
+                return false;
+            }
+        }
+        
+        // 获取节点类型的中文名称
+        function getNodeTypeName(nodeType) {
+            const typeMap = {
+                'ROOM': '诊室',
+                'HALLWAY': '走廊',
+                'ELEVATOR': '电梯',
+                'STAIRS': '楼梯',
+                'ENTRANCE': '入口'
+            };
+            return typeMap[nodeType] || '未知';
+        }
+        
+        // 下载二维码图片
+        function downloadQRCode(canvas, filename) {
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 'image/png');
+        }
+        
+        // 使用在线API生成二维码（备用方案）
+        function generateQRCodeWithAPI(node, container) {
+            const content = `HOSPITAL_NODE_${node.nodeId}`;
+            const QR_API = "https://api.qrserver.com/v1/create-qr-code/";
+            
+            // 创建容器
+            const item = document.createElement('div');
+            item.className = 'qrcode-item';
+            
+            // 标题
+            const title = document.createElement('h3');
+            title.textContent = node.name;
+            item.appendChild(title);
+            
+            // 内容显示
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'content';
+            contentDiv.textContent = content;
+            item.appendChild(contentDiv);
+            
+            // 使用img标签加载在线API生成的二维码
+            const img = document.createElement('img');
+            img.style.width = '150px';
+            img.style.height = '150px';
+            img.style.margin = '10px auto';
+            img.style.display = 'block';
+            img.style.border = '5px solid white';
+            img.style.borderRadius = '10px';
+            img.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
+            img.src = `${QR_API}?size=200x200&data=${encodeURIComponent(content)}`;
+            img.alt = node.name;
+            img.onerror = function() {
+                item.innerHTML = '<div style="color: #dc3545; padding: 20px;">❌ 二维码生成失败，请检查网络连接</div>';
+            };
+            item.appendChild(img);
+            
+            // 下载按钮（使用在线API的高清版本）
+            const downloadBtn = document.createElement('a');
+            downloadBtn.className = 'download-btn';
+            downloadBtn.href = `${QR_API}?size=500x500&data=${encodeURIComponent(content)}`;
+            downloadBtn.download = `qrcode_${node.nodeId}_${node.name}.png`;
+            downloadBtn.textContent = '⬇️ 下载二维码';
+            item.appendChild(downloadBtn);
+            
+            container.appendChild(item);
+        }
+        
+        // 生成单个二维码（优先使用本地库）
+        function generateQRCode(node, container) {
+            const content = `HOSPITAL_NODE_${node.nodeId}`;
+            
+            // 如果QRCode库未加载，使用在线API
+            if (typeof QRCode === 'undefined' || window.QRCodeFallback) {
+                generateQRCodeWithAPI(node, container);
+                return;
+            }
+            
+            // 创建容器
+            const item = document.createElement('div');
+            item.className = 'qrcode-item';
+            
+            // 标题
+            const title = document.createElement('h3');
+            title.textContent = node.name;
+            item.appendChild(title);
+            
+            // 内容显示
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'content';
+            contentDiv.textContent = content;
+            item.appendChild(contentDiv);
+            
+            // 加载提示
+            const loading = document.createElement('div');
+            loading.className = 'loading';
+            loading.textContent = '生成中...';
+            item.appendChild(loading);
+            
+            // 创建canvas
+            const canvas = document.createElement('canvas');
+            canvas.style.display = 'none';
+            item.appendChild(canvas);
+            
+            // 生成二维码
+            try {
+                QRCode.toCanvas(canvas, content, {
+                    width: 200,
+                    margin: 2,
+                    color: {
+                        dark: '#000000',
+                        light: '#FFFFFF'
+                    }
+                }, function (error) {
+                    if (error) {
+                        // 如果本地生成失败，尝试使用在线API
+                        item.remove();
+                        generateQRCodeWithAPI(node, container);
+                        return;
+                    }
+                    
+                    // 隐藏加载提示，显示canvas
+                    loading.style.display = 'none';
+                    canvas.style.display = 'block';
+                    
+                    // 下载按钮
+                    const downloadBtn = document.createElement('a');
+                    downloadBtn.className = 'download-btn';
+                    downloadBtn.href = '#';
+                    downloadBtn.textContent = '⬇️ 下载二维码';
+                    downloadBtn.onclick = function(e) {
+                        e.preventDefault();
+                        downloadQRCode(canvas, `qrcode_${node.nodeId}_${node.name}.png`);
+                    };
+                    item.appendChild(downloadBtn);
+                });
+            } catch (error) {
+                // 如果出错，使用在线API
+                item.remove();
+                generateQRCodeWithAPI(node, container);
+                return;
+            }
+            
+            container.appendChild(item);
+        }
+        
+        // 生成所有二维码
+        function generateAllQRCodes() {
+            const grid = document.getElementById('qrcodeGrid');
+            grid.innerHTML = '';
+            
+            nodes.forEach((node, index) => {
+                setTimeout(() => {
+                    generateQRCode(node, grid);
+                }, index * 100);
+            });
+        }
+        
+        // 生成自定义二维码
+        async function generateCustomQR() {
+            const nodeId = document.getElementById('customNodeId').value;
+            const nodeName = document.getElementById('customNodeName').value;
+            const resultDiv = document.getElementById('customResult');
+            
+            if (!nodeId) {
+                alert('请填写节点ID（map_node_id）');
+                return;
+            }
+            
+            resultDiv.innerHTML = '';
+            
+            const node = {
+                nodeId: parseInt(nodeId), 
+                name: nodeName || `节点${nodeId}`
+            };
+            generateQRCode(node, resultDiv);
+            
+            // 清空输入
+            document.getElementById('customNodeId').value = '';
+            document.getElementById('customNodeName').value = '';
+        }
+        
+        // 刷新按钮：重新从API加载数据
+        async function refreshLocations() {
+            const grid = document.getElementById('qrcodeGrid');
+            grid.innerHTML = '<div style="text-align: center; padding: 20px;">正在从数据库重新加载位置数据...</div>';
+            
+            const apiLoaded = await loadLocationsFromAPI();
+            if (apiLoaded) {
+                grid.innerHTML = '<div style="text-align: center; padding: 10px; color: #28a745; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 5px; margin: 20px 0;">' +
+                    `✅ 已从数据库加载 ${nodes.length} 个真实位置节点</div>`;
+                generateAllQRCodes();
+            } else {
+                grid.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;">❌ 加载失败，请检查后端服务是否运行</div>';
+            }
+        }
+        
+        // 移除页面加载时的alert（太烦人）
+        // 之前的alert已移除，改为在页面上显示提示
+        
+        // 页面加载时生成所有二维码
+        async function init() {
+            // 先尝试从API加载真实数据
+            const apiLoaded = await loadLocationsFromAPI();
+            
+            // 显示加载状态
+            const grid = document.getElementById('qrcodeGrid');
+            if (!apiLoaded) {
+                grid.innerHTML = '<div style="text-align: center; padding: 20px; color: #856404; background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; margin: 20px 0;">' +
+                    '⚠️ 无法连接到后端API (http://localhost:8080)，使用示例数据。请确保后端服务正在运行。</div>';
+            } else {
+                grid.innerHTML = '<div style="text-align: center; padding: 10px; color: #28a745; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 5px; margin: 20px 0;">' +
+                    `✅ 已从数据库加载 ${nodes.length} 个真实位置节点</div>`;
+            }
+            
+            // 等待一下，让CDN有时间加载
+            setTimeout(function() {
+                // 即使库未加载，也可以使用在线API生成
+                generateAllQRCodes();
+                
+                // 如果库未加载，显示提示（但不阻止使用）
+                if (typeof QRCode === 'undefined' && !window.QRCodeFallback) {
+                    const statusDiv = document.createElement('div');
+                    statusDiv.style.cssText = 'background: #fff3cd; border: 1px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 5px; color: #856404;';
+                    statusDiv.innerHTML = '⚠️ 本地二维码库加载失败，已自动切换到在线API生成模式。功能正常，但需要网络连接。';
+                    document.querySelector('.container').insertBefore(statusDiv, document.getElementById('qrcodeGrid'));
+                }
+            }, 500); // 给CDN更多时间加载
+        }
+        
+        // 等待页面和库都加载完成
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+

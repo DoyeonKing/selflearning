@@ -1,0 +1,196 @@
+@startuml 医院排班系统活动图
+
+title 医院排班系统 - 完整业务流程活动图
+
+|管理员|
+start
+:登录系统;
+
+partition "排班管理" {
+    :选择排班功能;
+    
+    if (单个排班 or 批量排班?) then (单个排班)
+        :选择医生;
+        :选择日期;
+        :选择时间段;
+        :选择诊室地点;
+        :输入号源数量;
+        :输入挂号费;
+        :提交创建请求;
+        
+        |系统|
+        :验证数据完整性;
+        
+        if (验证通过?) then (是)
+            :写入schedules表;
+            |管理员|
+            :显示创建成功;
+        else (否)
+            |管理员|
+            :显示错误信息;
+            stop
+        endif
+        
+    else (批量排班)
+        :下载Excel模板;
+        :填写排班数据;
+        :上传Excel文件;
+        
+        |系统|
+        :解析Excel文件;
+        
+        fork
+            :验证医生工号;
+        fork again
+            :验证时间段ID;
+        fork again
+            :验证地点ID;
+        fork again
+            :验证数据格式;
+        end fork
+        
+        if (所有数据验证通过?) then (是)
+            :循环处理每一行数据;
+            repeat
+                :创建单条排班记录;
+                :写入schedules表;
+            repeat while (还有数据?) is (是)
+            ->否;
+            
+            |管理员|
+            :显示批量导入结果;
+            :显示成功/失败统计;
+        else (否)
+            |管理员|
+            :显示详细错误列表;
+            stop
+        endif
+    endif
+}
+
+partition "冲突检测" {
+    |系统|
+    :自动检测排班冲突;
+    
+    fork
+        :检测医生重复排班;
+    fork again
+        :检测办公室冲突;
+    fork again
+        :检测工作时间过长;
+    fork again
+        :检测时间段不匹配;
+    end fork
+    
+    if (发现冲突?) then (是)
+        :标记冲突记录;
+        :高亮显示冲突;
+        |管理员|
+        :查看冲突详情;
+        :解决冲突;
+    else (否)
+        |管理员|
+        :确认排班无误;
+    endif
+}
+
+|患者|
+partition "患者查看排班" {
+    :访问挂号系统;
+    :选择科室;
+    :选择日期;
+    
+    |系统|
+    :联合查询多表获取排班;
+    note right
+        SELECT从schedules关联
+        doctors, departments,
+        time_slots, locations
+    end note
+    
+    :返回可用排班列表;
+    
+    |患者|
+    :查看医生排班信息;
+    
+    if (找到合适的排班?) then (是)
+        :选择排班预约;
+    else (否)
+        :更换查询条件;
+        stop
+    endif
+}
+
+|医生|
+partition "医生请假流程" {
+    :提交请假申请;
+    
+    |系统|
+    :写入leave_requests表;
+    :状态设为pending;
+    
+    |管理员|
+    :查看待审批请假;
+    
+    if (批准请假?) then (是)
+        |系统|
+        :更新申请状态为approved;
+        :查找冲突的排班记录;
+        
+        if (存在冲突排班?) then (是)
+            :检查排班预约情况;
+            
+            if (有患者预约?) then (是)
+                :通知患者;
+                :执行退款流程;
+            endif
+            
+            :取消冲突排班;
+            :更新schedules状态为cancelled;
+        endif
+        
+        |医生|
+        :收到批准通知;
+    else (否)
+        |系统|
+        :更新申请状态为rejected;
+        |医生|
+        :收到拒绝通知;
+    endif
+}
+
+|管理员|
+partition "排班修改与取消" {
+    :选择要修改的排班;
+    
+    if (修改 or 取消?) then (修改)
+        :修改排班信息;
+        |系统|
+        :更新schedules表记录;
+        |管理员|
+        :显示修改成功;
+    else (取消)
+        |系统|
+        :检查是否有预约;
+        
+        if (有患者预约?) then (是)
+            :提示需先处理预约;
+            |管理员|
+            :通知患者并退款;
+            |系统|
+            :更新排班状态为cancelled;
+        else (否)
+            :直接更新状态为cancelled;
+        endif
+        
+        |管理员|
+        :显示取消成功;
+    endif
+}
+
+stop
+
+@enduml
+
+
+

@@ -1,0 +1,80 @@
+# Server configuration
+server:
+  port: 8080
+  address: 0.0.0.0  # 允许外部访问（真机调试必需）
+  connection-timeout: 30000  # 连接超时30秒
+  tomcat:
+    threads:
+      max: 200  # 最大线程数
+      min-spare: 10  # 最小空闲线程数
+    max-connections: 10000  # 最大连接数
+    accept-count: 100  # 等待队列长度
+
+# Spring Data Source (MySQL)
+spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+  # 自定义文件上传路径
+  file:
+    upload-dir: images/doctors/
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/hospital_05?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf-8&allowPublicKeyRetrieval=true&connectTimeout=5000&socketTimeout=30000
+    username: root
+    password: 123456 # 使用引号包裹密码，避免特殊字符解析问题
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 连接池配置
+      minimum-idle: 5  # 最小空闲连接数
+      maximum-pool-size: 20  # 最大连接池大小
+      auto-commit: true
+      idle-timeout: 30000  # 空闲连接超时时间（30秒）
+      max-lifetime: 1800000  # 连接最大生存时间（30分钟）
+      connection-timeout: 30000  # 连接超时时间（30秒）
+      connection-test-query: SELECT 1  # 连接测试查询
+      pool-name: HospitalHikariPool
+  jpa:
+    hibernate:
+      ddl-auto: none # 暂时禁用自动DDL，避免外键约束问题
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+  # security:
+  #   user:
+  #     name: user # 默认用户
+  #     password: password # 默认密码，生产环境应禁用或使用更复杂机制
+  
+  # Redis配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+# OpenAPI (Swagger UI) configuration
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+# Logging configuration
+logging:
+  level:
+    org.springframework: INFO
+    com.example.springboot: DEBUG # 调整为你的根包名
+
+# 文件上传配置
+file:
+  upload:
+    path: uploads/

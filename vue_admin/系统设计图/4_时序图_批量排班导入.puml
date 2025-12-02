@@ -1,0 +1,150 @@
+@startuml 批量排班导入时序图
+
+title 场景二：批量排班与Excel导入 - 时序图
+
+actor 管理员 as Admin
+participant "前端界面" as Frontend
+participant "后端API" as Backend
+participant "Excel解析器" as ExcelParser
+database "doctors表" as DoctorsDB
+database "time_slots表" as TimeSlotsDB
+database "locations表" as LocationsDB
+database "schedules表" as SchedulesDB
+
+== 下载模板 ==
+Admin -> Frontend : 点击"下载模板"按钮
+activate Frontend
+Frontend -> Backend : GET /api/schedules/template
+activate Backend
+Backend --> Frontend : 返回Excel模板文件
+deactivate Backend
+Frontend --> Admin : 下载模板到本地
+deactivate Frontend
+
+== 填写Excel数据 ==
+Admin -> Admin : 在Excel中填写排班数据\n(医生工号/日期/时间段ID/地点ID/号源/费用)
+note right
+    Excel示例：
+    | 医生工号 | 日期 | 时间段ID | 地点ID | 号源 | 费用 |
+    | D001 | 2025-11-10 | 1 | 12 | 10 | 25.00 |
+    | D002 | 2025-11-10 | 2 | 13 | 15 | 30.00 |
+    | D001 | 2025-11-11 | 1 | 12 | 10 | 25.00 |
+end note
+
+== 上传Excel文件 ==
+Admin -> Frontend : 选择并上传Excel文件
+activate Frontend
+Frontend -> Backend : POST /api/schedules/batch-import\n(multipart/form-data)\nFile: schedules.xlsx
+activate Backend
+
+== 解析Excel文件 ==
+Backend -> ExcelParser : 解析Excel文件
+activate ExcelParser
+ExcelParser -> ExcelParser : 读取工作表数据
+ExcelParser -> ExcelParser : 转换为JSON数组
+ExcelParser --> Backend : 返回解析后的数据\n[\n  {工号: "D001", 日期: "2025-11-10", ...},\n  {工号: "D002", 日期: "2025-11-10", ...},\n  ...\n]
+deactivate ExcelParser
+
+== 数据验证阶段 ==
+Backend -> Backend : 初始化验证结果\n{成功: [], 失败: []}
+
+loop 遍历每一行数据
+    Backend -> Backend : 获取当前行数据
+    
+    ' 验证医生工号
+    Backend -> DoctorsDB : SELECT doctor_id\nFROM doctors\nWHERE employee_id='D001'
+    activate DoctorsDB
+    DoctorsDB --> Backend : 返回doctor_id或空
+    deactivate DoctorsDB
+    
+    alt 医生工号不存在
+        Backend -> Backend : 记录错误\n"第2行：医生工号D001不存在"
+        note right: 跳过该行，继续下一行
+    else 医生工号存在
+        ' 验证时间段ID
+        Backend -> TimeSlotsDB : SELECT slot_id\nFROM time_slots\nWHERE slot_id=1
+        activate TimeSlotsDB
+        TimeSlotsDB --> Backend : 返回时间段数据或空
+        deactivate TimeSlotsDB
+        
+        alt 时间段ID不存在
+            Backend -> Backend : 记录错误\n"第2行：时间段ID 1 不存在"
+        else 时间段ID存在
+            ' 验证地点ID
+            Backend -> LocationsDB : SELECT location_id\nFROM locations\nWHERE location_id=12
+            activate LocationsDB
+            LocationsDB --> Backend : 返回地点数据或空
+            deactivate LocationsDB
+            
+            alt 地点ID不存在
+                Backend -> Backend : 记录错误\n"第2行：地点ID 12 不存在"
+            else 地点ID存在
+                ' 检查冲突
+                Backend -> SchedulesDB : 检查冲突排班\nSELECT * FROM schedules\nWHERE doctor_id=5\nAND schedule_date='2025-11-10'\nAND slot_id=1
+                activate SchedulesDB
+                SchedulesDB --> Backend : 返回冲突数据
+                deactivate SchedulesDB
+                
+                alt 发现冲突
+                    Backend -> Backend : 记录错误\n"第2行：该医生在该时间段已有排班"
+                else 无冲突 - 验证通过
+                    Backend -> Backend : 添加到成功列表
+                end
+            end
+        end
+    end
+end
+
+== 批量插入数据库 ==
+alt 存在验证失败的记录
+    Backend --> Frontend : 返回部分成功结果\n{\n  success: 50,\n  failed: 10,\n  errors: [...错误详情]\n}
+    Frontend --> Admin : 显示导入结果\n成功50条，失败10条\n展示错误详情列表
+else 全部验证通过
+    loop 遍历成功列表
+        Backend -> SchedulesDB : INSERT INTO schedules\n(doctor_id, schedule_date,\nslot_id, location_id,\ntotal_slots, booked_slots,\nfee, status)\nVALUES (...)
+        activate SchedulesDB
+        SchedulesDB --> Backend : 插入成功
+        deactivate SchedulesDB
+    end
+    
+    Backend -> Backend : 记录批量操作日志
+    
+    Backend --> Frontend : 返回全部成功\n{\n  success: 60,\n  failed: 0,\n  message: "批量导入成功"\n}
+    deactivate Backend
+    
+    Frontend --> Admin : 显示成功提示\n已成功导入60条排班记录
+    deactivate Frontend
+end
+
+== 自动冲突检测 ==
+Admin -> Frontend : 系统自动触发冲突检测
+activate Frontend
+Frontend -> Backend : POST /api/schedules/detect-conflicts
+activate Backend
+
+Backend -> SchedulesDB : 执行多种冲突检测查询
+activate SchedulesDB
+note right of Backend
+    冲突类型：
+    1. 医生重复排班
+    2. 办公室冲突
+    3. 医生跨办公室
+    4. 工作时间过长
+    5. 时间段班次不匹配
+end note
+SchedulesDB --> Backend : 返回所有冲突数据
+deactivate SchedulesDB
+
+Backend --> Frontend : 返回冲突检测结果\n{\n  conflicts: [...],\n  summary: {\n    total: 5,\n    critical: 3,\n    warning: 2\n  }\n}
+deactivate Backend
+
+Frontend --> Admin : 高亮显示冲突排班\n显示冲突摘要\n"发现5个冲突(严重:3, 警告:2)"
+deactivate Frontend
+
+Admin -> Frontend : 点击冲突排班查看详情
+Frontend --> Admin : 显示冲突详细信息
+
+@enduml
+
+
+

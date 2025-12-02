@@ -1,0 +1,158 @@
+@startuml 患者查看排班时序图
+
+title 场景三：患者查看排班信息 - 时序图
+
+actor 患者 as Patient
+participant "患者端界面" as PatientUI
+participant "后端API" as Backend
+database "schedules表" as SchedulesDB
+database "doctors表" as DoctorsDB
+database "departments表" as DepartmentsDB
+database "parent_departments表" as ParentDB
+database "time_slots表" as TimeSlotsDB
+database "locations表" as LocationsDB
+
+== 访问挂号系统 ==
+Patient -> PatientUI : 打开挂号页面
+activate PatientUI
+
+PatientUI -> Backend : GET /api/departments\n获取科室列表
+activate Backend
+Backend -> ParentDB : SELECT * FROM parent_departments
+activate ParentDB
+ParentDB --> Backend : 一级科室数据
+deactivate ParentDB
+
+Backend -> DepartmentsDB : SELECT * FROM departments
+activate DepartmentsDB
+DepartmentsDB --> Backend : 二级科室数据
+deactivate DepartmentsDB
+
+Backend --> PatientUI : 返回科室树形结构
+deactivate Backend
+
+PatientUI --> Patient : 显示科室列表\n(内科>呼吸内科/心血管科等)
+deactivate PatientUI
+
+== 选择科室和日期 ==
+Patient -> PatientUI : 选择科室: 心血管科
+Patient -> PatientUI : 选择日期: 2025-11-10
+
+== 查询排班信息 ==
+PatientUI -> Backend : GET /api/schedules/available\n?department_id=5\n&date=2025-11-10
+activate PatientUI
+activate Backend
+
+Backend -> Backend : 构建多表联合查询SQL
+
+Backend -> SchedulesDB : 执行复杂查询
+activate SchedulesDB
+
+note right of Backend
+    SELECT
+        s.schedule_id,
+        d.full_name AS doctor_name,
+        d.title AS doctor_title,
+        d.specialty,
+        p.name AS parent_department,
+        dep.name AS department_name,
+        s.schedule_date,
+        t.slot_name AS time_period,
+        t.start_time,
+        t.end_time,
+        l.name AS location_name,
+        l.building,
+        l.floor,
+        l.room_number,
+        s.fee,
+        s.total_slots,
+        s.booked_slots,
+        (s.total_slots - s.booked_slots) AS remaining_slots
+    FROM schedules s
+    JOIN doctors d ON s.doctor_id = d.doctor_id
+    JOIN departments dep ON d.department_id = dep.department_id
+    JOIN parent_departments p ON dep.parent_id = p.parent_department_id
+    JOIN time_slots t ON s.slot_id = t.slot_id
+    JOIN locations l ON s.location_id = l.location_id
+    WHERE dep.department_id = 5
+        AND s.schedule_date = '2025-11-10'
+        AND s.status = 'available'
+        AND (s.total_slots - s.booked_slots) > 0
+    ORDER BY t.start_time;
+end note
+
+' 多表联合查询
+SchedulesDB -> DoctorsDB : JOIN doctors表
+activate DoctorsDB
+DoctorsDB --> SchedulesDB : 医生信息
+deactivate DoctorsDB
+
+SchedulesDB -> DepartmentsDB : JOIN departments表
+activate DepartmentsDB
+DepartmentsDB --> SchedulesDB : 科室信息
+deactivate DepartmentsDB
+
+SchedulesDB -> ParentDB : JOIN parent_departments表
+activate ParentDB
+ParentDB --> SchedulesDB : 一级科室信息
+deactivate ParentDB
+
+SchedulesDB -> TimeSlotsDB : JOIN time_slots表
+activate TimeSlotsDB
+TimeSlotsDB --> SchedulesDB : 时间段信息
+deactivate TimeSlotsDB
+
+SchedulesDB -> LocationsDB : JOIN locations表
+activate LocationsDB
+LocationsDB --> SchedulesDB : 地点信息
+deactivate LocationsDB
+
+SchedulesDB --> Backend : 返回完整排班数据
+deactivate SchedulesDB
+
+Backend -> Backend : 格式化数据\n按时间段分组\n计算剩余号源
+
+Backend --> PatientUI : 返回排班列表JSON\n[\n  {\n    schedule_id: 1001,\n    doctor_name: "张医生",\n    doctor_title: "主任医师",\n    specialty: "心血管疾病",\n    time_period: "上午08:00-08:30",\n    location: "门诊楼-301诊室",\n    fee: 25.00,\n    remaining_slots: 8\n  },\n  {...}\n]
+deactivate Backend
+
+== 展示排班信息 ==
+PatientUI -> PatientUI : 渲染排班卡片\n按时间段排序
+
+PatientUI --> Patient : 显示可预约排班列表\n┌──────────────────────┐\n│ 👨‍⚕️ 张医生 - 主任医师    │\n│ 🕐 上午08:00-08:30    │\n│ 📍 门诊楼-301诊室      │\n│ 💰 ¥25.00            │\n│ 📋 剩余号源: 8/10      │\n│ [立即预约]            │\n└──────────────────────┘
+deactivate PatientUI
+
+== 患者选择排班 ==
+Patient -> PatientUI : 查看医生详细信息
+activate PatientUI
+PatientUI -> Backend : GET /api/doctors/{doctor_id}/detail
+activate Backend
+Backend -> DoctorsDB : SELECT * FROM doctors\nWHERE doctor_id=5
+activate DoctorsDB
+DoctorsDB --> Backend : 医生详细信息
+deactivate DoctorsDB
+Backend --> PatientUI : 返回医生资料
+deactivate Backend
+PatientUI --> Patient : 显示医生简介、擅长领域等
+deactivate PatientUI
+
+alt 找到合适的排班
+    Patient -> PatientUI : 点击"立即预约"按钮
+    activate PatientUI
+    PatientUI --> Patient : 跳转到预约确认页面
+    note right
+        后续流程：
+        1. 填写患者信息
+        2. 确认预约并支付
+        3. 生成预约记录
+        4. 更新schedules表的booked_slots
+    end note
+    deactivate PatientUI
+else 未找到合适的排班
+    Patient -> PatientUI : 更换查询条件\n(选择其他日期或科室)
+    note right: 重新执行查询流程
+end
+
+@enduml
+
+
+

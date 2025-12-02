@@ -1,0 +1,121 @@
+@startuml
+!theme plain
+title 手动拖拽排班时序图
+
+actor "管理员" as Admin
+participant "<<interface>>\n排班界面" as Dashboard
+participant "<<interface>>\n拖拽处理器" as DragHandler
+participant "<<controller>>\n拖拽控制器" as DragController
+participant "<<controller>>\n冲突检测器" as ConflictDetector
+participant ":排班数据" as ScheduleData
+participant ":医生数据" as DoctorData
+participant ":时间段数据" as TimeSlotData
+participant ":地点数据" as LocationData
+
+== 1. 选择科室 ==
+Admin -> Dashboard: 选择要排班的科室
+activate Dashboard
+Dashboard -> ScheduleData: getDepartmentScheduleData()
+ScheduleData ->> Dashboard: return scheduleData
+Dashboard ->> Admin: 显示科室排班表
+deactivate Dashboard
+
+== 2. 拖拽时间段卡片 ==
+Admin -> Dashboard: 拖拽时间段卡片到对应位置
+activate Dashboard
+Dashboard -> DragHandler: handleTimeSlotDrop(timeSlot, toDate, toShift)
+activate DragHandler
+DragHandler -> DragController: processTimeSlotDrag()
+activate DragController
+
+DragController -> DragController: checkTimeSlotMatch()
+alt 时间段匹配
+    DragController -> TimeSlotData: addTimeSlotToSchedule()
+    TimeSlotData ->> DragController: return success
+    DragController -> ConflictDetector: detectTimeSlotConflicts()
+    activate ConflictDetector
+    ConflictDetector -> ConflictDetector: detectTimeSlotOverlapConflicts()
+    ConflictDetector ->> DragController: return noConflict
+    deactivate ConflictDetector
+    DragController ->> DragHandler: return timeSlotAdded
+else 时间段不匹配
+    DragController ->> DragHandler: return timeSlotMismatch
+end
+deactivate DragController
+DragHandler ->> Dashboard: return processingComplete
+deactivate DragHandler
+Dashboard ->> Admin: 显示时间段卡片
+deactivate Dashboard
+
+== 3. 拖拽医生卡片 ==
+Admin -> Dashboard: 拖拽医生卡片到对应位置
+activate Dashboard
+Dashboard -> DragHandler: handleDoctorDrop(doctor, toDate, toShift)
+activate DragHandler
+DragHandler -> DragController: processDoctorDrag()
+activate DragController
+
+DragController -> DoctorData: checkDoctorAvailability()
+DoctorData ->> DragController: return doctorAvailable
+DragController -> ScheduleData: addDoctorToSchedule()
+ScheduleData ->> DragController: return addSuccess
+DragController -> ConflictDetector: detectDoctorConflicts()
+activate ConflictDetector
+ConflictDetector -> ConflictDetector: detectDoctorDoubleBooking()
+ConflictDetector ->> DragController: return noConflict
+deactivate ConflictDetector
+DragController ->> DragHandler: return doctorScheduled
+deactivate DragController
+DragHandler ->> Dashboard: return processingComplete
+deactivate DragHandler
+Dashboard ->> Admin: 显示医生卡片
+deactivate Dashboard
+
+== 4. 拖拽办公地点卡片 ==
+Admin -> Dashboard: 拖拽办公地点卡片到医生卡片上
+activate Dashboard
+Dashboard -> DragHandler: handleLocationDrop(location, toDate, toShift, targetElement)
+activate DragHandler
+DragHandler -> DragController: processLocationDrag()
+activate DragController
+
+DragController -> LocationData: checkLocationAvailability()
+LocationData ->> DragController: return locationAvailable
+DragController -> ScheduleData: assignLocationToDoctor()
+ScheduleData ->> DragController: return assignmentSuccess
+DragController -> ConflictDetector: detectOfficeConflicts()
+activate ConflictDetector
+ConflictDetector -> ConflictDetector: detectOfficeConflicts()
+ConflictDetector -> ConflictDetector: detectDoctorMultiOfficeConflicts()
+ConflictDetector ->> DragController: return noConflict
+deactivate ConflictDetector
+DragController ->> DragHandler: return locationAssigned
+deactivate DragController
+DragHandler ->> Dashboard: return processingComplete
+deactivate DragHandler
+Dashboard ->> Admin: 显示地点信息
+deactivate Dashboard
+
+== 5. 冲突检测和显示 ==
+Dashboard -> ConflictDetector: detectAllConflicts()
+activate ConflictDetector
+ConflictDetector -> ConflictDetector: detectAllConflicts()
+ConflictDetector -> ConflictDetector: detectDoctorDoubleBooking()
+ConflictDetector -> ConflictDetector: detectOfficeConflicts()
+ConflictDetector -> ConflictDetector: detectDoctorMultiOfficeConflicts()
+ConflictDetector ->> Dashboard: return conflictDetectionResults
+deactivate ConflictDetector
+Dashboard ->> Admin: 高亮显示冲突（如有）
+deactivate Dashboard
+
+note right of ConflictDetector
+① 自我调用——对象可以调用它自己的方法
+end note
+
+note right of ConflictDetector
+② 框架——使用框架来表示需要循环的所有消息,或用来表示一条或多条消息是可选的步骤
+end note
+
+@enduml
+
+

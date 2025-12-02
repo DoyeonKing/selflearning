@@ -1,0 +1,225 @@
+@startuml
+!theme plain
+title 线上挂号系统类图（分层架构）
+
+package "接口层 (Interface Layer)" {
+    interface IRegistrationService {
+        +selectDepartment(departmentId: string): Department
+        +selectTimeSlot(timeSlotId: string): TimeSlot
+        +selectRegistrationType(typeId: string): RegistrationType
+        +checkAvailability(typeId: string): AvailabilityResult
+        +generateRegistration(patientId: string, typeId: string): Registration
+        +generateWaitlist(patientId: string, typeId: string): Waitlist
+        +processPayment(registrationId: string, amount: number): PaymentResult
+        +sendNotification(patientId: string, message: string): void
+    }
+    
+    interface IPatientService {
+        +getPatientInfo(patientId: string): Patient
+        +updatePatientInfo(patientId: string, info: PatientInfo): void
+        +getRegistrationHistory(patientId: string): Registration[]
+    }
+    
+    interface IPaymentService {
+        +processPayment(amount: number, method: string): PaymentResult
+        +refundPayment(paymentId: string): RefundResult
+        +getPaymentStatus(paymentId: string): PaymentStatus
+    }
+    
+    interface INotificationService {
+        +sendSMS(phone: string, message: string): void
+        +sendEmail(email: string, message: string): void
+        +sendPushNotification(patientId: string, message: string): void
+    }
+}
+
+package "控制层 (Controller Layer)" {
+    class RegistrationController {
+        -registrationService: IRegistrationService
+        -patientService: IPatientService
+        -paymentService: IPaymentService
+        -notificationService: INotificationService
+        +selectDepartment(departmentId: string): Department
+        +selectTimeSlot(timeSlotId: string): TimeSlot
+        +selectRegistrationType(typeId: string): RegistrationType
+        +checkAvailability(typeId: string): AvailabilityResult
+        +processRegistration(patientId: string, typeId: string): RegistrationResult
+        +processWaitlist(patientId: string, typeId: string): WaitlistResult
+        +confirmRegistration(registrationId: string): void
+        +confirmWaitlist(waitlistId: string): void
+    }
+    
+    class PaymentController {
+        -paymentService: IPaymentService
+        -registrationService: IRegistrationService
+        +processPayment(registrationId: string, amount: number): PaymentResult
+        +handlePaymentCallback(paymentId: string, status: string): void
+        +refundPayment(paymentId: string): RefundResult
+    }
+    
+    class NotificationController {
+        -notificationService: INotificationService
+        -patientService: IPatientService
+        +sendRegistrationConfirmation(patientId: string, registrationId: string): void
+        +sendWaitlistSuccess(patientId: string, waitlistId: string): void
+        +sendWaitlistFailure(patientId: string, waitlistId: string): void
+    }
+    
+    class AvailabilityController {
+        -registrationService: IRegistrationService
+        +checkRegistrationAvailability(typeId: string): AvailabilityResult
+        +checkWaitlistAvailability(typeId: string): WaitlistAvailabilityResult
+        +updateAvailability(typeId: string, count: number): void
+    }
+}
+
+package "实体层 (Entity Layer)" {
+    class Patient {
+        -patientId: string
+        -name: string
+        -phone: string
+        -email: string
+        -idCard: string
+        -gender: string
+        -birthDate: Date
+        +getPatientInfo(): PatientInfo
+        +updateInfo(info: PatientInfo): void
+        +validateInfo(): boolean
+    }
+    
+    class Department {
+        -departmentId: string
+        -name: string
+        -parentId: string
+        -description: string
+        -isActive: boolean
+        +getDepartmentInfo(): DepartmentInfo
+        +getSubDepartments(): Department[]
+    }
+    
+    class TimeSlot {
+        -slotId: string
+        -startTime: string
+        -endTime: string
+        -date: Date
+        -isAvailable: boolean
+        +getTimeSlotInfo(): TimeSlotInfo
+        +checkAvailability(): boolean
+    }
+    
+    class RegistrationType {
+        -typeId: string
+        -name: string
+        -departmentId: string
+        -doctorId: string
+        -fee: number
+        -maxSlots: number
+        -availableSlots: number
+        +getTypeInfo(): RegistrationTypeInfo
+        +checkAvailability(): boolean
+        +updateAvailability(count: number): void
+    }
+    
+    class Registration {
+        -registrationId: string
+        -patientId: string
+        -typeId: string
+        -registrationDate: Date
+        -status: string
+        -paymentId: string
+        -createdAt: Date
+        +getRegistrationInfo(): RegistrationInfo
+        +updateStatus(status: string): void
+        +cancel(): boolean
+    }
+    
+    class Waitlist {
+        -waitlistId: string
+        -patientId: string
+        -typeId: string
+        -requestDate: Date
+        -status: string
+        -priority: number
+        -createdAt: Date
+        +getWaitlistInfo(): WaitlistInfo
+        +updateStatus(status: string): void
+        +promoteToRegistration(): Registration
+    }
+    
+    class Payment {
+        -paymentId: string
+        -registrationId: string
+        -amount: number
+        -method: string
+        -status: string
+        -transactionId: string
+        -createdAt: Date
+        +getPaymentInfo(): PaymentInfo
+        +updateStatus(status: string): void
+        +refund(): RefundResult
+    }
+    
+    class AvailabilityResult {
+        -isAvailable: boolean
+        -availableCount: number
+        -totalCount: number
+        -message: string
+        +getAvailabilityInfo(): AvailabilityInfo
+    }
+    
+    class RegistrationResult {
+        -success: boolean
+        -registrationId: string
+        -message: string
+        -errors: string[]
+        +getResultInfo(): ResultInfo
+    }
+    
+    class WaitlistResult {
+        -success: boolean
+        -waitlistId: string
+        -message: string
+        -priority: number
+        +getResultInfo(): ResultInfo
+    }
+}
+
+' 接口层到控制层的关系
+IRegistrationService <|.. RegistrationController
+IPatientService <|.. RegistrationController
+IPaymentService <|.. PaymentController
+INotificationService <|.. NotificationController
+
+' 控制层到实体层的关系
+RegistrationController --> Patient
+RegistrationController --> Department
+RegistrationController --> TimeSlot
+RegistrationController --> RegistrationType
+RegistrationController --> Registration
+RegistrationController --> Waitlist
+RegistrationController --> AvailabilityResult
+RegistrationController --> RegistrationResult
+RegistrationController --> WaitlistResult
+
+PaymentController --> Payment
+PaymentController --> Registration
+
+NotificationController --> Patient
+NotificationController --> Registration
+NotificationController --> Waitlist
+
+AvailabilityController --> RegistrationType
+AvailabilityController --> AvailabilityResult
+
+' 实体层内部关系
+Patient ||--o{ Registration
+Patient ||--o{ Waitlist
+Department ||--o{ RegistrationType
+RegistrationType ||--o{ Registration
+RegistrationType ||--o{ Waitlist
+Registration ||--|| Payment
+
+@enduml
+
+
+

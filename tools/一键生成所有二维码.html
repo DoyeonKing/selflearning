@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>医院导航 - 批量生成二维码</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1890ff;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .info {
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .info p {
+            margin: 5px 0;
+            color: #0050b3;
+        }
+        .controls {
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #1890ff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #40a9ff;
+        }
+        button.danger {
+            background: #ff4d4f;
+        }
+        button.danger:hover {
+            background: #ff7875;
+        }
+        .qrcode-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .qrcode-item {
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            background: #fafafa;
+        }
+        .qrcode-item canvas {
+            margin: 10px 0;
+            border: 2px solid #1890ff;
+            border-radius: 4px;
+            background: white;
+        }
+        .qrcode-item h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .qrcode-item p {
+            font-size: 12px;
+            color: #666;
+            word-break: break-all;
+        }
+        .download-btn {
+            background: #52c41a;
+            padding: 6px 12px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        .download-btn:hover {
+            background: #73d13d;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .status.success {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #389e0d;
+        }
+        .status.error {
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #cf1322;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏥 医院导航系统 - 二维码批量生成工具</h1>
+        
+        <div class="info">
+            <p><strong>📋 使用说明：</strong></p>
+            <p>1. 选择生成方式：单个生成或批量生成</p>
+            <p>2. 批量生成：点击"从数据库获取节点并生成所有二维码"（需要后端API支持）</p>
+            <p>3. 单个生成：输入节点ID和名称，点击"生成二维码"</p>
+            <p>4. 生成的二维码可以下载或打印</p>
+            <p>5. 在医院对应位置张贴二维码，患者扫码即可定位</p>
+        </div>
+
+        <div class="controls">
+            <h2>方式一：批量生成（推荐）</h2>
+            <button onclick="generateAllFromAPI()">📦 从数据库获取真实位置数据并生成所有二维码</button>
+            <button onclick="generateDefaultNodes()" class="danger">⚡ 生成默认节点二维码（5个示例，仅用于测试）</button>
+            <button onclick="downloadAllAsZip()" style="background: #52C41A; margin-top: 10px;">📦 打包所有二维码为ZIP（可自定义保存位置）</button>
+            
+            <h2 style="margin-top: 30px;">方式二：单个生成</h2>
+            <div class="input-group">
+                <label>节点ID：</label>
+                <input type="number" id="nodeId" placeholder="例如：1" min="1">
+            </div>
+            <div class="input-group">
+                <label>节点名称：</label>
+                <input type="text" id="nodeName" placeholder="例如：医院大门">
+            </div>
+            <button onclick="generateSingle()">✨ 生成单个二维码</button>
+            <button onclick="clearAll()" class="danger">🗑️ 清空所有</button>
+        </div>
+
+        <div id="status"></div>
+        
+        <div id="qrcodeContainer" class="qrcode-grid"></div>
+    </div>
+
+    <script>
+        let generatedQRCodes = [];
+
+        function showStatus(message, type = 'success') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = 'status';
+            }, 5000);
+        }
+
+        function downloadQRCode(canvas, filename) {
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        function downloadAll() {
+            generatedQRCodes.forEach(item => {
+                setTimeout(() => {
+                    downloadQRCode(item.canvas, `qrcode_node_${item.nodeId}_${item.nodeName || 'node'}.png`);
+                }, item.nodeId * 200);
+            });
+        }
+
+        async function downloadAllAsZip() {
+            if (generatedQRCodes.length === 0) {
+                showStatus('请先生成二维码！', 'error');
+                return;
+            }
+
+            showStatus('正在打包所有二维码...', 'success');
+            
+            const zip = new JSZip();
+            
+            for (const item of generatedQRCodes) {
+                const blob = await new Promise(resolve => {
+                    item.canvas.toBlob(resolve, 'image/png');
+                });
+                
+                const filename = `qrcode_node_${item.nodeId}_${item.nodeName || 'node'}.png`;
+                zip.file(filename, blob);
+            }
+
+            zip.generateAsync({ type: 'blob' }).then(function(content) {
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `医院导航二维码_${new Date().getTime()}.zip`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showStatus(`✅ 已打包 ${generatedQRCodes.length} 个二维码到ZIP文件！`, 'success');
+            });
+        }
+
+        async function generateAllFromAPI() {
+            showStatus('正在从数据库获取真实位置数据...', 'success');
+            
+            try {
+                // 从location API获取所有位置数据
+                const response = await fetch('http://localhost:8080/api/locations');
+                if (!response.ok) {
+                    throw new Error('后端API请求失败: ' + response.status);
+                }
+                const locations = await response.json();
+                
+                // 过滤出有mapNodeId的location
+                const validLocations = locations.filter(loc => loc.mapNodeId != null && loc.mapNodeId > 0);
+                
+                if (validLocations.length === 0) {
+                    throw new Error('数据库中没有找到有效的map_node_id数据');
+                }
+                
+                showStatus(`成功获取 ${validLocations.length} 个真实位置节点，开始生成二维码...`, 'success');
+                
+                clearAll();
+                
+                validLocations.forEach((location, index) => {
+                    setTimeout(() => {
+                        const nodeName = location.locationName || 
+                                       `${location.building || ''}${location.roomNumber || ''}`.trim() || 
+                                       `位置${location.locationId}`;
+                        generateQRCode(location.mapNodeId, nodeName);
+                    }, index * 100);
+                });
+                
+                setTimeout(() => {
+                    showStatus(`✅ 成功生成 ${validLocations.length} 个真实位置二维码！可以点击"打包所有二维码为ZIP"按钮下载`, 'success');
+                }, validLocations.length * 100 + 500);
+                
+            } catch (error) {
+                console.error('获取位置数据失败:', error);
+                showStatus(`❌ 获取位置数据失败: ${error.message}。请确保后端服务正在运行（localhost:8080），或使用"生成默认节点二维码"`, 'error');
+            }
+        }
+
+        function generateDefaultNodes() {
+            clearAll();
+            const defaultNodes = [
+                { nodeId: 1, name: '医院大门' },
+                { nodeId: 2, name: '分诊台' },
+                { nodeId: 3, name: '电梯口' },
+                { nodeId: 4, name: '内科诊室' },
+                { nodeId: 5, name: '外科诊室' }
+            ];
+            
+            defaultNodes.forEach((node, index) => {
+                setTimeout(() => {
+                    generateQRCode(node.nodeId, node.name);
+                }, index * 100);
+            });
+            
+            setTimeout(() => {
+                showStatus(`✅ 成功生成 ${defaultNodes.length} 个默认二维码！`, 'success');
+            }, defaultNodes.length * 100 + 500);
+        }
+
+        function generateSingle() {
+            const nodeId = document.getElementById('nodeId').value;
+            const nodeName = document.getElementById('nodeName').value;
+            
+            if (!nodeId) {
+                showStatus('请输入节点ID', 'error');
+                return;
+            }
+            
+            // 检查是否已生成
+            if (document.getElementById(`qrcode-${nodeId}`)) {
+                showStatus('该节点二维码已生成，请先删除', 'error');
+                return;
+            }
+            
+            generateQRCode(parseInt(nodeId), nodeName || `节点${nodeId}`);
+            showStatus('二维码生成成功！', 'success');
+            
+            // 清空输入
+            document.getElementById('nodeId').value = '';
+            document.getElementById('nodeName').value = '';
+        }
+
+        function clearAll() {
+            document.getElementById('qrcodeContainer').innerHTML = '';
+            generatedQRCodes = [];
+        }
+
+        function generateQRCode(nodeId, nodeName) {
+            // 检查库是否加载
+            if (typeof QRCode === 'undefined') {
+                showStatus('❌ 二维码库加载失败，请检查网络连接并刷新页面！', 'error');
+                return;
+            }
+            
+            const content = `HOSPITAL_NODE_${nodeId}`;
+            const container = document.getElementById('qrcodeContainer');
+            
+            const item = document.createElement('div');
+            item.className = 'qrcode-item';
+            item.id = `qrcode-${nodeId}`;
+            
+            const canvas = document.createElement('canvas');
+            item.appendChild(canvas);
+            
+            QRCode.toCanvas(canvas, content, {
+                width: 200,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            }, function (error) {
+                if (error) {
+                    showStatus(`生成二维码失败: ${error}`, 'error');
+                    item.remove();
+                    return;
+                }
+                
+                const title = document.createElement('h3');
+                title.textContent = nodeName || `节点${nodeId}`;
+                item.insertBefore(title, canvas);
+                
+                const contentText = document.createElement('p');
+                contentText.textContent = content;
+                item.appendChild(contentText);
+                
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'download-btn';
+                downloadBtn.textContent = '📥 下载';
+                downloadBtn.onclick = () => downloadQRCode(canvas, `qrcode_node_${nodeId}_${nodeName || 'node'}.png`);
+                item.appendChild(downloadBtn);
+                
+                container.appendChild(item);
+                
+                generatedQRCodes.push({ nodeId, nodeName, content, canvas });
+            });
+        }
+
+        // 页面加载时提示
+        window.onload = function() {
+            if (typeof QRCode === 'undefined') {
+                showStatus('❌ 二维码库加载失败，请检查网络连接并刷新页面！', 'error');
+            } else {
+                showStatus('💡 点击"从数据库获取真实位置数据并生成所有二维码"开始生成（使用数据库中的location表和map_node_id），或使用"生成默认节点二维码"快速测试', 'success');
+            }
+        };
+    </script>
+</body>
+</html>
+

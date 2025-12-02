@@ -1,0 +1,201 @@
+@startuml 冲突检测系统时序图
+
+title 排班冲突检测系统 - 完整时序图
+
+actor 管理员 as Admin
+participant "前端界面" as Frontend
+participant "后端API" as Backend
+participant "冲突检测引擎" as ConflictEngine
+database "schedules表" as SchedulesDB
+
+== 触发冲突检测 ==
+Admin -> Frontend : 操作触发检测\n(创建/修改/导入排班后)
+activate Frontend
+
+alt 自动触发
+    Frontend -> Frontend : 延迟500ms后自动触发
+    note right: 防抖机制，避免频繁检测
+else 手动触发
+    Admin -> Frontend : 点击"检测冲突"按钮
+end
+
+Frontend -> Backend : POST /api/schedules/detect-conflicts\n{\n  department_id: 5,\n  date_range: {\n    start: "2025-11-01",\n    end: "2025-11-30"\n  }\n}
+activate Backend
+
+Backend -> ConflictEngine : 启动冲突检测
+activate ConflictEngine
+
+ConflictEngine -> SchedulesDB : 获取排班数据\nSELECT * FROM schedules\nWHERE schedule_date BETWEEN '2025-11-01' AND '2025-11-30'\nAND status = 'available'
+activate SchedulesDB
+SchedulesDB --> ConflictEngine : 返回排班列表
+deactivate SchedulesDB
+
+ConflictEngine -> ConflictEngine : 初始化冲突数据结构\n{\n  conflicts: [],\n  summary: {\n    total: 0,\n    critical: 0,\n    warning: 0\n  }\n}
+
+== 冲突类型1: 医生重复排班 ==
+ConflictEngine -> ConflictEngine : detectDoctorDoubleBooking()
+
+note right of ConflictEngine
+    算法逻辑：
+    1. 创建Map: doctorScheduleMap
+    2. 遍历所有排班记录
+    3. 以"doctor_id-date-shift"为key
+    4. 检查是否已存在相同key
+    5. 如存在，标记为冲突
+end note
+
+ConflictEngine -> ConflictEngine : 构建医生时间映射\nMap<String, Schedule>\nkey = "doctor_id-date-shift"
+
+loop 遍历每条排班
+    ConflictEngine -> ConflictEngine : 检查key是否已存在
+    
+    alt 发现重复
+        ConflictEngine -> ConflictEngine : 添加冲突记录\n{\n  type: 'doctor_double_booking',\n  severity: 'critical',\n  description: "医生X在Y时间被重复排班",\n  doctor_id: 5,\n  date: "2025-11-10",\n  shift: "上午"\n}
+    end
+end
+
+== 冲突类型2: 办公室冲突 ==
+ConflictEngine -> ConflictEngine : detectOfficeConflicts()
+
+note right of ConflictEngine
+    算法逻辑：
+    1. 创建Map: officeDateMap
+    2. 以"location-date"为key (不区分班次)
+    3. 记录使用该办公室的医生列表
+    4. 如果同一办公室同一天被多人使用，标记冲突
+end note
+
+ConflictEngine -> ConflictEngine : 构建办公室日期映射\nMap<String, List<Doctor>>\nkey = "location-date"
+
+loop 遍历每条排班
+    ConflictEngine -> ConflictEngine : 检查同一办公室同一天
+    
+    alt 发现多个医生使用
+        ConflictEngine -> ConflictEngine : 为所有涉及医生添加冲突\n{\n  type: 'office_conflict',\n  severity: 'critical',\n  description: "办公室X在Y日被多人使用",\n  location: "门诊楼-301",\n  date: "2025-11-10",\n  doctor_ids: [5, 6, 7]\n}
+    end
+end
+
+== 冲突类型3: 医生跨办公室 ==
+ConflictEngine -> ConflictEngine : detectDoctorMultiOffice()
+
+note right of ConflictEngine
+    算法逻辑：
+    1. 创建Map: doctorOfficeMap
+    2. 以"doctor_id-date-shift"为key
+    3. 记录该医生该时段的办公室
+    4. 如果同一时段有多个不同办公室，标记冲突
+end note
+
+loop 遍历每条排班
+    ConflictEngine -> ConflictEngine : 检查同一医生同一时段的办公室
+    
+    alt 发现多个不同办公室
+        ConflictEngine -> ConflictEngine : 添加冲突记录\n{\n  type: 'doctor_multi_office',\n  severity: 'critical',\n  description: "医生X在Y时段被分配到多个办公室",\n  locations: ["301", "305"]\n}
+    end
+end
+
+== 冲突类型4: 工作时间过长 ==
+ConflictEngine -> ConflictEngine : detectWorkDurationConflicts()
+
+note right of ConflictEngine
+    算法逻辑：
+    1. 按医生分组排班记录
+    2. 按日期排序
+    3. 计算连续工作天数
+    4. 如果超过7天，标记警告
+end note
+
+ConflictEngine -> ConflictEngine : 按医生分组\nMap<doctor_id, List<Schedule>>
+
+loop 遍历每个医生
+    ConflictEngine -> ConflictEngine : 按日期排序排班记录
+    
+    ConflictEngine -> ConflictEngine : 计算连续工作天数
+    note right
+        consecutiveDays = 1
+        for i=1 to schedules.length:
+            if (date[i] - date[i-1] == 1天):
+                consecutiveDays++
+            else:
+                consecutiveDays = 1
+    end note
+    
+    alt 连续工作 > 7天
+        ConflictEngine -> ConflictEngine : 添加警告\n{\n  type: 'work_duration_conflict',\n  severity: 'warning',\n  description: "医生X连续工作Y天",\n  consecutive_days: 9,\n  doctor_id: 5\n}
+    end
+end
+
+== 冲突类型5: 时间段班次不匹配 ==
+ConflictEngine -> ConflictEngine : detectTimeSlotMismatch()
+
+note right of ConflictEngine
+    检查逻辑：
+    1. 检查时间段名称是否包含"上午"或"下午"
+    2. 比对时间段的班次标识与排班的shift字段
+    3. 如不匹配，标记警告
+end note
+
+loop 遍历每条排班
+    ConflictEngine -> ConflictEngine : 检查时间段与班次是否匹配
+    
+    alt 时间段包含"上午"但班次是"下午"
+        ConflictEngine -> ConflictEngine : 添加警告\n{\n  type: 'time_slot_mismatch',\n  severity: 'warning',\n  description: "时间段与班次不匹配"\n}
+    else 时间段包含"下午"但班次是"上午"
+        ConflictEngine -> ConflictEngine : 添加警告
+    end
+end
+
+== 汇总冲突结果 ==
+ConflictEngine -> ConflictEngine : 统计冲突数量
+
+ConflictEngine -> ConflictEngine : 生成冲突摘要\nsummary = {\n  total: conflicts.length,\n  critical: conflicts.filter(c => c.severity === 'critical').length,\n  warning: conflicts.filter(c => c.severity === 'warning').length\n}
+
+ConflictEngine --> Backend : 返回完整冲突数据\n{\n  hasConflicts: true,\n  conflicts: [...],\n  summary: {\n    total: 15,\n    critical: 8,\n    warning: 7\n  }\n}
+deactivate ConflictEngine
+
+== 返回结果并更新界面 ==
+Backend -> Backend : 缓存冲突数据
+
+Backend --> Frontend : 返回冲突检测结果JSON
+deactivate Backend
+
+Frontend -> Frontend : 更新conflictData状态
+
+Frontend -> Frontend : 为每个冲突的排班记录\n添加高亮样式类
+
+loop 遍历排班卡片
+    Frontend -> Frontend : 检查该排班是否有冲突
+    
+    alt 有严重冲突 (critical)
+        Frontend -> Frontend : 应用红色高亮\nclass="conflict-error"
+    else 有警告冲突 (warning)
+        Frontend -> Frontend : 应用黄色高亮\nclass="conflict-warning"
+    else 无冲突
+        Frontend -> Frontend : 正常显示
+    end
+end
+
+Frontend --> Admin : 更新界面显示\n┌─────────────────────────┐\n│ ⚠️ 发现 15 个冲突         │\n│ 🔴 严重: 8  🟡 警告: 7   │\n│                         │\n│ [排班卡片 - 红色背景]     │\n│ 医生: 张三 (ID:5)        │\n│ ⚠️ 医生重复排班          │\n│                         │\n│ [排班卡片 - 黄色背景]     │\n│ 医生: 李四 (ID:6)        │\n│ ⚠️ 连续工作9天           │\n└─────────────────────────┘
+deactivate Frontend
+
+== 查看冲突详情 ==
+Admin -> Frontend : 点击有冲突的排班卡片
+activate Frontend
+
+Frontend -> Frontend : 过滤该排班相关的冲突
+
+Frontend --> Admin : 弹出详情对话框\n┌─────────────────────────┐\n│ 医生: 张三 (ID:5)        │\n│ 冲突类型: 医生重复排班、   │\n│          办公室冲突      │\n│                         │\n│ 详细信息:               │\n│ • 医生张三在2025-11-10  │\n│   上午被重复排班         │\n│   - 地点1: 门诊楼-301   │\n│   - 地点2: 门诊楼-305   │\n│                         │\n│ • 办公室门诊楼-301在     │\n│   2025-11-10被多人使用  │\n│   - 使用医生: 张三、李四 │\n│                         │\n│ [关闭]                  │\n└─────────────────────────┘
+deactivate Frontend
+
+== 解决冲突后重新检测 ==
+Admin -> Frontend : 修改排班解决冲突
+note right: 例如：删除重复的排班记录
+Frontend -> Backend : 提交修改
+Backend --> Frontend : 修改成功
+Frontend -> Frontend : 自动触发冲突重新检测
+note right: 回到流程开始，重新执行冲突检测
+
+@enduml
+
+
+

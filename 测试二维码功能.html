@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二维码功能测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 32px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        #result {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            white-space: pre-wrap;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            max-height: 600px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            color: #17a2b8;
+        }
+        .node-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .node-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .node-card h3 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .node-card p {
+            color: #666;
+            font-size: 13px;
+            margin: 4px 0;
+        }
+        .qr-code {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+            color: #667eea;
+            word-break: break-all;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-pending { background: #ffc107; color: white; }
+        .status-active { background: #28a745; color: white; }
+        .status-inactive { background: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 医院导航二维码测试工具</h1>
+        
+        <!-- 测试1: 查询所有节点 -->
+        <div class="section">
+            <h2>📋 1. 查询所有节点的二维码信息</h2>
+            <div class="button-group">
+                <button onclick="getAllNodes()">🔍 查询所有节点</button>
+                <button onclick="getActiveNodes()">✅ 查询已激活节点</button>
+            </div>
+            <div id="nodeList" class="node-list"></div>
+        </div>
+
+        <!-- 测试2: 扫码测试 -->
+        <div class="section">
+            <h2>📱 2. 扫码定位测试</h2>
+            <div class="input-group">
+                <input type="text" id="scanInput" placeholder="输入二维码内容，例如: HOSPITAL_NODE_1" value="HOSPITAL_NODE_5">
+                <button onclick="scanQRCode()">🔎 扫码定位</button>
+            </div>
+            <p class="info" style="margin-top: 10px;">
+                💡 提示：输入 HOSPITAL_NODE_1 到 HOSPITAL_NODE_20 等来测试不同节点
+            </p>
+        </div>
+
+        <!-- 测试3: 生成二维码 -->
+        <div class="section">
+            <h2>🎨 3. 生成二维码内容</h2>
+            <div class="input-group">
+                <input type="number" id="generateNodeId" placeholder="输入节点ID，例如: 5" value="5">
+                <button onclick="generateQRCode()">🔧 生成二维码内容</button>
+            </div>
+        </div>
+
+        <!-- 测试4: 更新状态 -->
+        <div class="section">
+            <h2>🔄 4. 更新二维码状态</h2>
+            <div class="input-group">
+                <input type="number" id="statusNodeId" placeholder="节点ID" value="5">
+                <select id="statusSelect" style="padding: 10px; border-radius: 8px; border: 2px solid #e0e0e0;">
+                    <option value="pending">待生成 (pending)</option>
+                    <option value="active">已激活 (active)</option>
+                    <option value="inactive">已停用 (inactive)</option>
+                </select>
+                <button onclick="updateStatus()">💾 更新状态</button>
+            </div>
+        </div>
+
+        <!-- 结果显示区 -->
+        <div class="section">
+            <h2>📊 API响应结果</h2>
+            <div id="result">等待测试...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api/qrcode';
+        
+        function showResult(data, isError = false) {
+            const resultDiv = document.getElementById('result');
+            const className = isError ? 'error' : 'success';
+            resultDiv.innerHTML = `<span class="${className}">${isError ? '❌ 错误' : '✅ 成功'}</span>\n\n` + 
+                                  JSON.stringify(data, null, 2);
+        }
+
+        async function getAllNodes() {
+            try {
+                const response = await fetch(`${API_BASE}/nodes`);
+                const data = await response.json();
+                showResult(data);
+                
+                if (data.code === '200' && data.data) {
+                    displayNodeList(data.data);
+                }
+            } catch (error) {
+                showResult({error: error.message}, true);
+            }
+        }
+
+        async function getActiveNodes() {
+            try {
+                const response = await fetch(`${API_BASE}/nodes/active`);
+                const data = await response.json();
+                showResult(data);
+                
+                if (data.code === '200' && data.data) {
+                    displayNodeList(data.data);
+                }
+            } catch (error) {
+                showResult({error: error.message}, true);
+            }
+        }
+
+        async function scanQRCode() {
+            const content = document.getElementById('scanInput').value;
+            if (!content) {
+                alert('请输入二维码内容');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/scan/${content}`);
+                const data = await response.json();
+                showResult(data);
+                
+                if (data.code === '200' && data.data) {
+                    alert(`✅ 扫码成功！\n\n节点: ${data.data.nodeName}\n坐标: (${data.data.coordinatesX}, ${data.data.coordinatesY})\n楼层: ${data.data.floorLevel}`);
+                } else {
+                    alert('❌ 未找到该二维码对应的节点');
+                }
+            } catch (error) {
+                showResult({error: error.message}, true);
+            }
+        }
+
+        async function generateQRCode() {
+            const nodeId = document.getElementById('generateNodeId').value;
+            if (!nodeId) {
+                alert('请输入节点ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/generate/${nodeId}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                showResult(data);
+                
+                if (data.code === '200') {
+                    alert(`✅ 二维码内容生成成功！\n\n二维码: ${data.data.qrcodeContent}`);
+                    getAllNodes(); // 刷新列表
+                }
+            } catch (error) {
+                showResult({error: error.message}, true);
+            }
+        }
+
+        async function updateStatus() {
+            const nodeId = document.getElementById('statusNodeId').value;
+            const status = document.getElementById('statusSelect').value;
+            
+            if (!nodeId) {
+                alert('请输入节点ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/status/${nodeId}?status=${status}`, {
+                    method: 'PUT'
+                });
+                const data = await response.json();
+                showResult(data);
+                
+                if (data.code === '200') {
+                    alert(`✅ 状态更新成功！\n\n节点 ${nodeId} 状态已更新为: ${status}`);
+                    getAllNodes(); // 刷新列表
+                }
+            } catch (error) {
+                showResult({error: error.message}, true);
+            }
+        }
+
+        function displayNodeList(nodes) {
+            const nodeListDiv = document.getElementById('nodeList');
+            if (!nodes || nodes.length === 0) {
+                nodeListDiv.innerHTML = '<p>暂无数据</p>';
+                return;
+            }
+            
+            nodeListDiv.innerHTML = nodes.map(node => `
+                <div class="node-card">
+                    <h3>📍 ${node.nodeName || '未命名'}</h3>
+                    <p><strong>ID:</strong> ${node.nodeId}</p>
+                    <p><strong>类型:</strong> ${node.nodeType || '未知'}</p>
+                    <p><strong>坐标:</strong> (${node.coordinatesX}, ${node.coordinatesY})</p>
+                    <p><strong>楼层:</strong> ${node.floorLevel}</p>
+                    <p><strong>状态:</strong> <span class="status status-${node.qrcodeStatus.toLowerCase()}">${node.qrcodeStatus}</span></p>
+                    <div class="qr-code">${node.qrcodeContent || '未生成'}</div>
+                </div>
+            `).join('');
+        }
+
+        // 页面加载时自动查询
+        window.onload = function() {
+            setTimeout(() => {
+                getAllNodes();
+            }, 500);
+        };
+    </script>
+</body>
+</html>
+
+
+
+
+
