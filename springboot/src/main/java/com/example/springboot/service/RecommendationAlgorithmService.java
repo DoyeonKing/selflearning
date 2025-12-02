@@ -11,6 +11,7 @@ import com.example.springboot.repository.ScheduleRepository;
 import com.example.springboot.repository.SymptomDepartmentMappingRepository;
 import com.example.springboot.util.CosineSimilarityCalculator;
 import com.example.springboot.util.TFIDFCalculator;
+import org.nd4j.linalg.api.ndarray.INDArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,8 +22,10 @@ import com.example.springboot.repository.PatientRepository;
 import com.example.springboot.entity.PatientProfile;
 import com.example.springboot.entity.Schedule;
 
+import javax.annotation.PostConstruct;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -52,12 +55,58 @@ public class RecommendationAlgorithmService {
     @Autowired
     private ScheduleRepository scheduleRepository;
     
+    @Autowired
+    private WordVectorService wordVectorService;
+    
+    // 缓存：医生ID -> 特征向量 (避免每次重复计算医生向量)
+    private final Map<Integer, INDArray> doctorVectorCache = new ConcurrentHashMap<>();
+    
     // 权重配置（可根据实际效果调整）
     private static final double W1_SYMPTOM_MATCH = 0.4;      // 症状匹配度权重
     private static final double W2_DEPARTMENT_MATCH = 0.3;  // 科室匹配度权重
     private static final double W3_TITLE_SCORE = 0.15;       // 职称分数权重
     private static final double W4_POPULARITY = 0.1;         // 热度分数权重
     private static final double W5_AVAILABILITY = 0.05;     // 可预约性权重
+    
+    /**
+     * 系统启动时，预计算所有医生的特征向量
+     */
+    @PostConstruct
+    public void initDoctorVectors() {
+        if (wordVectorService == null || !wordVectorService.isReady()) {
+            logger.info("⚠️ AI 模型未就绪，跳过医生向量预计算（将使用普通匹配）。");
+            return;
+        }
+        
+        logger.info("🚀 开始预计算医生特征向量...");
+        List<Doctor> doctors = doctorRepository.findAll();
+        refreshDoctorVectorCache(doctors);
+    }
+    
+    /**
+     * 刷新缓存的方法 (当医生信息更新时也可调用此方法)
+     */
+    public void refreshDoctorVectorCache(List<Doctor> doctors) {
+        if (wordVectorService == null || !wordVectorService.isReady()) {
+            return;
+        }
+        
+        int count = 0;
+        for (Doctor doc : doctors) {
+            if (doc.getSpecialty() != null && !doc.getSpecialty().isEmpty()) {
+                // A. 调用 NLP 服务进行分词
+                List<String> keywords = nlpService.segmentText(doc.getSpecialty());
+                // B. 调用 AI 服务转为向量
+                INDArray vector = wordVectorService.encodeText(keywords);
+                
+                if (vector != null) {
+                    doctorVectorCache.put(doc.getDoctorId(), vector);
+                    count++;
+                }
+            }
+        }
+        logger.info("✅ 已构建 {} 位医生的 AI 语义索引。", count);
+    }
     
     /**
      * 混合推荐策略
@@ -136,18 +185,28 @@ public class RecommendationAlgorithmService {
     }
     
     /**
-     * 计算相似度（TF-IDF + 余弦相似度）
-     * @param symptoms 症状关键词列表
-     * @param doctor 医生
-     * @return 相似度（0-1之间）
+     * 重写相似度计算 (优先使用缓存)
      */
     public double calculateSimilarity(List<String> symptoms, Doctor doctor) {
         if (doctor.getSpecialty() == null || doctor.getSpecialty().trim().isEmpty()) {
             return 0.0;
         }
         
-        // 使用NLP服务计算症状与specialty的匹配度
-        return nlpService.calculateSymptomMatch(symptoms, doctor.getSpecialty());
+        // 降级判断：模型未加载 OR 该医生无缓存 -> 回退到普通匹配
+        if (wordVectorService == null || !wordVectorService.isReady() || 
+            !doctorVectorCache.containsKey(doctor.getDoctorId())) {
+            return nlpService.calculateSymptomMatch(symptoms, doctor.getSpecialty());
+        }
+
+        // A. 实时计算患者输入的向量
+        INDArray userVector = wordVectorService.encodeText(symptoms);
+        if (userVector == null) return 0.0;
+
+        // B. 从缓存直接获取医生向量 (纳秒级)
+        INDArray doctorVector = doctorVectorCache.get(doctor.getDoctorId());
+
+        // C. 计算并返回相似度
+        return wordVectorService.calculateSimilarity(userVector, doctorVector);
     }
     
     /**

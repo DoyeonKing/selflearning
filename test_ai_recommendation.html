@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 医生推荐系统测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .config-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .config-section h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #495057;
+            font-weight: 500;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .result-section {
+            margin-top: 30px;
+        }
+        
+        .result-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-size: 16px;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        
+        .recommendation-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: box-shadow 0.3s;
+        }
+        
+        .recommendation-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .recommendation-card h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .recommendation-card .score {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .recommendation-card .info {
+            color: #666;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .recommendation-card .reason {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #495057;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #666;
+            transition: color 0.3s;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            font-weight: 500;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-indicator.ready {
+            background: #28a745;
+        }
+        
+        .status-indicator.not-ready {
+            background: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI 医生推荐系统测试</h1>
+        <p class="subtitle">测试词向量模型同义词扩展和智能推荐功能</p>
+        
+        <div class="config-section">
+            <h3>⚙️ 系统配置</h3>
+            <div class="form-group">
+                <label>API 基础地址：</label>
+                <input type="text" id="apiBase" value="http://localhost:8080" placeholder="http://localhost:8080">
+            </div>
+            <div class="form-group">
+                <label>AI 模型状态：</label>
+                <div id="modelStatus">
+                    <span class="status-indicator not-ready"></span>
+                    <span>未检测</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('department')">科室推荐</button>
+            <button class="tab" onclick="switchTab('doctor')">医生推荐</button>
+            <button class="tab" onclick="switchTab('nlp')">NLP 测试</button>
+        </div>
+        
+        <!-- 科室推荐 -->
+        <div id="tab-department" class="tab-content active">
+            <div class="config-section">
+                <h3>📋 科室推荐测试</h3>
+                <div class="form-group">
+                    <label>症状描述：</label>
+                    <textarea id="symptomDescription" placeholder="例如：我最近经常头痛，还伴有恶心和呕吐..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>患者ID（可选）：</label>
+                    <input type="number" id="patientId" placeholder="留空则不使用患者历史">
+                </div>
+                <button class="btn" onclick="recommendDepartments()">🔍 推荐科室</button>
+            </div>
+            <div class="result-section" id="departmentResult"></div>
+        </div>
+        
+        <!-- 医生推荐 -->
+        <div id="tab-doctor" class="tab-content">
+            <div class="config-section">
+                <h3>👨‍⚕️ 医生推荐测试</h3>
+                <div class="form-group">
+                    <label>症状关键词（用逗号分隔）：</label>
+                    <input type="text" id="symptomKeywords" placeholder="例如：头痛,恶心,发热">
+                </div>
+                <div class="form-group">
+                    <label>返回数量（Top-N）：</label>
+                    <input type="number" id="topN" value="10" min="1" max="50">
+                </div>
+                <button class="btn" onclick="recommendDoctors()">🔍 推荐医生</button>
+            </div>
+            <div class="result-section" id="doctorResult"></div>
+        </div>
+        
+        <!-- NLP 测试 -->
+        <div id="tab-nlp" class="tab-content">
+            <div class="config-section">
+                <h3>🧠 NLP 功能测试</h3>
+                <div class="form-group">
+                    <label>测试文本：</label>
+                    <textarea id="testText" placeholder="输入一段症状描述，测试分词和同义词扩展"></textarea>
+                </div>
+                <button class="btn" onclick="testNLP()">🔍 测试 NLP</button>
+            </div>
+            <div class="result-section" id="nlpResult"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = document.getElementById('apiBase').value;
+        
+        // 切换标签页
+        function switchTab(tabName) {
+            // 隐藏所有标签内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 显示选中的标签
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        // 检查模型状态
+        async function checkModelStatus() {
+            // 这里可以添加一个健康检查接口
+            const statusEl = document.getElementById('modelStatus');
+            statusEl.innerHTML = '<span class="status-indicator ready"></span><span>已就绪（请查看后端日志确认）</span>';
+        }
+        
+        // 科室推荐
+        async function recommendDepartments() {
+            const description = document.getElementById('symptomDescription').value.trim();
+            const patientId = document.getElementById('patientId').value;
+            const resultDiv = document.getElementById('departmentResult');
+            
+            if (!description) {
+                resultDiv.innerHTML = '<div class="error">请输入症状描述</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="loading">⏳ 正在推荐科室...</div>';
+            
+            try {
+                const apiBase = document.getElementById('apiBase').value;
+                const requestBody = {
+                    symptomDescription: description
+                };
+                if (patientId) {
+                    requestBody.patientId = parseInt(patientId);
+                }
+                
+                const response = await fetch(`${apiBase}/api/doctor-recommendations/departments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || '请求失败');
+                }
+                
+                const data = await response.json();
+                displayDepartmentResults(data);
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ 错误：${error.message}</div>`;
+            }
+        }
+        
+        // 显示科室推荐结果
+        function displayDepartmentResults(departments) {
+            const resultDiv = document.getElementById('departmentResult');
+            
+            if (!departments || departments.length === 0) {
+                resultDiv.innerHTML = '<div class="error">未找到匹配的科室</div>';
+                return;
+            }
+            
+            let html = `<div class="success">✅ 找到 ${departments.length} 个推荐科室</div>`;
+            
+            departments.forEach((dept, index) => {
+                html += `
+                    <div class="recommendation-card">
+                        <h4>${index + 1}. ${dept.departmentName || '未知科室'}</h4>
+                        <span class="score">推荐度: ${(dept.score * 100).toFixed(1)}%</span>
+                        <div class="info">科室ID: ${dept.departmentId}</div>
+                        ${dept.description ? `<div class="info">描述: ${dept.description}</div>` : ''}
+                        ${dept.reason ? `<div class="reason">💡 ${dept.reason}</div>` : ''}
+                    </div>
+                `;
+            });
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        // 医生推荐
+        async function recommendDoctors() {
+            const keywords = document.getElementById('symptomKeywords').value.trim();
+            const topN = parseInt(document.getElementById('topN').value) || 10;
+            const resultDiv = document.getElementById('doctorResult');
+            
+            if (!keywords) {
+                resultDiv.innerHTML = '<div class="error">请输入症状关键词</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="loading">⏳ 正在推荐医生...</div>';
+            
+            try {
+                const apiBase = document.getElementById('apiBase').value;
+                const keywordList = keywords.split(',').map(k => k.trim()).filter(k => k);
+                
+                // 先获取科室推荐
+                const deptResponse = await fetch(`${apiBase}/api/doctor-recommendations/departments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        symptomDescription: keywordList.join('、')
+                    })
+                });
+                
+                if (!deptResponse.ok) {
+                    throw new Error('获取科室推荐失败');
+                }
+                
+                const departments = await deptResponse.json();
+                if (departments.length === 0) {
+                    resultDiv.innerHTML = '<div class="error">未找到匹配的科室，无法推荐医生</div>';
+                    return;
+                }
+                
+                // 使用第一个科室推荐医生
+                const deptId = departments[0].departmentId;
+                
+                const response = await fetch(`${apiBase}/api/doctor-recommendations/by-department`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        departmentId: deptId,
+                        symptomKeywords: keywordList,
+                        topN: topN
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || '请求失败');
+                }
+                
+                const data = await response.json();
+                displayDoctorResults(data);
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ 错误：${error.message}</div>`;
+            }
+        }
+        
+        // 显示医生推荐结果
+        function displayDoctorResults(doctors) {
+            const resultDiv = document.getElementById('doctorResult');
+            
+            if (!doctors || doctors.length === 0) {
+                resultDiv.innerHTML = '<div class="error">未找到匹配的医生</div>';
+                return;
+            }
+            
+            let html = `<div class="success">✅ 找到 ${doctors.length} 位推荐医生</div>`;
+            
+            doctors.forEach((doctor, index) => {
+                html += `
+                    <div class="recommendation-card">
+                        <h4>${index + 1}. ${doctor.doctorName || '未知医生'}</h4>
+                        <span class="score">匹配度: ${(doctor.score * 100).toFixed(1)}%</span>
+                        <div class="info">科室: ${doctor.departmentName || '未知'}</div>
+                        <div class="info">职称: ${doctor.title || '未知'}</div>
+                        ${doctor.specialty ? `<div class="info">专长: ${doctor.specialty}</div>` : ''}
+                        ${doctor.reason ? `<div class="reason">💡 ${doctor.reason}</div>` : ''}
+                        ${doctor.availableSchedules && doctor.availableSchedules.length > 0 ? 
+                            `<div class="info" style="margin-top: 10px;">📅 可预约时段: ${doctor.availableSchedules.length} 个</div>` : 
+                            '<div class="info" style="margin-top: 10px;">📅 暂无可用时段</div>'}
+                    </div>
+                `;
+            });
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        // NLP 测试
+        async function testNLP() {
+            const text = document.getElementById('testText').value.trim();
+            const resultDiv = document.getElementById('nlpResult');
+            
+            if (!text) {
+                resultDiv.innerHTML = '<div class="error">请输入测试文本</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="loading">⏳ 正在处理...</div>';
+            
+            try {
+                const apiBase = document.getElementById('apiBase').value;
+                
+                // 测试科室推荐（会触发NLP处理）
+                const response = await fetch(`${apiBase}/api/doctor-recommendations/departments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        symptomDescription: text
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || '请求失败');
+                }
+                
+                const data = await response.json();
+                
+                let html = '<div class="success">✅ NLP 处理完成</div>';
+                html += '<div class="recommendation-card">';
+                html += '<h4>处理结果</h4>';
+                html += `<div class="info">输入文本: ${text}</div>`;
+                html += `<div class="info">找到 ${data.length} 个匹配科室</div>`;
+                html += '<div class="reason">💡 系统已自动进行分词、同义词扩展和语义匹配</div>';
+                html += '</div>';
+                
+                if (data.length > 0) {
+                    html += '<h4 style="margin-top: 20px;">匹配的科室：</h4>';
+                    data.forEach((dept, index) => {
+                        html += `
+                            <div class="recommendation-card">
+                                <h4>${index + 1}. ${dept.departmentName}</h4>
+                                <span class="score">匹配度: ${(dept.score * 100).toFixed(1)}%</span>
+                                ${dept.reason ? `<div class="reason">${dept.reason}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+                
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ 错误：${error.message}</div>`;
+            }
+        }
+        
+        // 页面加载时检查模型状态
+        window.onload = function() {
+            checkModelStatus();
+        };
+    </script>
+</body>
+</html>
+

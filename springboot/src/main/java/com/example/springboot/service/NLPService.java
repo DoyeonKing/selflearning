@@ -10,17 +10,21 @@ import com.example.springboot.repository.DepartmentRepository;
 import com.example.springboot.repository.ScheduleRepository;
 import com.example.springboot.repository.PatientProfileRepository;
 import com.example.springboot.repository.AppointmentRepository;
+import com.example.springboot.repository.DoctorRepository;
 import com.example.springboot.entity.Doctor;
+import com.example.springboot.entity.Schedule;
 import com.example.springboot.entity.enums.DoctorStatus;
 import com.example.springboot.util.CosineSimilarityCalculator;
 import com.huaban.analysis.jieba.JiebaSegmenter;
 import com.huaban.analysis.jieba.SegToken;
+import org.nd4j.linalg.api.ndarray.INDArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -53,6 +57,9 @@ public class NLPService {
     
     @Autowired
     private AppointmentRepository appointmentRepository;
+    
+    @Autowired
+    private WordVectorService wordVectorService;
     
     private final JiebaSegmenter segmenter = new JiebaSegmenter();
     
@@ -119,7 +126,7 @@ public class NLPService {
     }
     
     /**
-     * 同义词扩展
+     * 升级版同义词扩展：数据库同义词 + AI 联想
      * @param keywords 原始关键词列表
      * @return 扩展后的关键词列表（包含同义词）
      */
@@ -132,26 +139,46 @@ public class NLPService {
         Set<String> expandedKeywords = new HashSet<>(keywords);
         
         for (String keyword : keywords) {
-            // 查找同义词
+            // A. 查数据库 (原有逻辑 - 精确映射)
             List<SymptomSynonym> synonyms = synonymRepository.findBySymptomKeyword(keyword);
-            for (SymptomSynonym synonym : synonyms) {
-                expandedKeywords.add(synonym.getSynonym());
-            }
+            synonyms.forEach(s -> expandedKeywords.add(s.getSynonym()));
             
-            // 反向查找（如果输入的是同义词，找到原始关键词）
             List<SymptomSynonym> reverseSynonyms = synonymRepository.findBySynonym(keyword);
-            for (SymptomSynonym reverseSynonym : reverseSynonyms) {
-                expandedKeywords.add(reverseSynonym.getSymptomKeyword());
+            reverseSynonyms.forEach(s -> expandedKeywords.add(s.getSymptomKeyword()));
+            
+            // B. AI 语义联想 (新增逻辑 - 模糊召回)
+            if (wordVectorService != null && wordVectorService.isReady()) {
+                // 如果是没见过的词，让 AI 找 3 个最相似的词
+                Collection<String> aiSynonyms = wordVectorService.findNearestWords(keyword, 3);
+                if (!aiSynonyms.isEmpty()) {
+                    expandedKeywords.addAll(aiSynonyms);
+                    logger.debug("🤖 AI 为 '{}' 联想了: {}", keyword, aiSynonyms);
+                }
             }
         }
         
         List<String> result = new ArrayList<>(expandedKeywords);
-        logger.debug("同义词扩展: {} -> {}", keywords, result);
+        logger.debug("同义词扩展(混合模式): {} -> {}", keywords, result);
         return result;
     }
     
     /**
-     * 计算症状与文本的匹配度
+     * 辅助方法：将文本分词并转为列表 (供外部调用)
+     */
+    public List<String> segmentText(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        String normalized = normalizeText(text);
+        return segmenter.sentenceProcess(normalized).stream()
+                .map(SegToken::word)
+                .filter(w -> w.length() > 1 && !STOP_WORDS.contains(w))
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 计算症状与文本的匹配度 (AI + 规则双轨制)
      * @param symptoms 症状关键词列表
      * @param text 文本（如医生的specialty字段）
      * @return 匹配度（0-1之间）
@@ -160,18 +187,35 @@ public class NLPService {
         if (symptoms == null || symptoms.isEmpty() || text == null || text.trim().isEmpty()) {
             return 0.0;
         }
+
+        // 场景 A: AI 模型未就绪 -> 降级为原有词频匹配
+        if (wordVectorService == null || !wordVectorService.isReady()) {
+            List<String> textWords = segmentText(text);
+            return CosineSimilarityCalculator.cosineSimilarity(symptoms, textWords);
+        }
+
+        // 场景 B: AI 向量匹配
+        INDArray symptomVector = wordVectorService.encodeText(symptoms);
+        INDArray textVector = wordVectorService.encodeText(segmentText(text));
         
-        // 对文本进行分词
-        String normalizedText = normalizeText(text);
-        List<SegToken> tokens = segmenter.sentenceProcess(normalizedText);
-        List<String> textWords = tokens.stream()
-                .map(SegToken::word)
-                .filter(word -> word.length() > 1)
-                .filter(word -> !STOP_WORDS.contains(word))
-                .collect(Collectors.toList());
+        // 如果向量计算失败，降级到原有方法
+        if (symptomVector == null || textVector == null) {
+            List<String> textWords = segmentText(text);
+            return CosineSimilarityCalculator.cosineSimilarity(symptoms, textWords);
+        }
         
-        // 使用余弦相似度计算匹配度
-        return CosineSimilarityCalculator.cosineSimilarity(symptoms, textWords);
+        // 计算语义相似度
+        double similarity = wordVectorService.calculateSimilarity(symptomVector, textVector);
+        
+        // 场景 C: 保底策略
+        // 如果 AI 判定相似度低 (<0.5)，但存在完全相同的关键词，强制给一个及格分
+        List<String> textWords = segmentText(text);
+        boolean hasExactMatch = textWords.stream().anyMatch(symptoms::contains);
+        if (hasExactMatch && similarity < 0.5) {
+            return 0.5; 
+        }
+
+        return Math.max(0.0, similarity);
     }
     
     /**
@@ -233,7 +277,7 @@ public List<DepartmentRecommendation> recommendDepartments(String symptomDescrip
     logger.info("开始科室推荐，症状描述: {}, 患者ID: {}", symptomDescription, patientId);
     
     // 1. 分词与实体识别、症状标准化、生成症状特征
-    List<String> symptomKeywords = nlpService.extractSymptomKeywords(symptomDescription);
+    List<String> symptomKeywords = this.extractSymptomKeywords(symptomDescription);
     
     if (symptomKeywords.isEmpty()) {
         logger.warn("未能提取症状关键词");
@@ -362,7 +406,7 @@ public List<DoctorRecommendationWithSchedule> recommendDoctorsByDepartment(
 private void adjustByMedicalHistory(List<DepartmentRecommendation> recommendations, 
                                     String medicalHistory, List<String> symptoms) {
     // 从病史中提取关键词，如果与当前症状相关，提升相关科室的分数
-    List<String> historyKeywords = nlpService.extractSymptomKeywords(medicalHistory);
+    List<String> historyKeywords = this.extractSymptomKeywords(medicalHistory);
     
     for (DepartmentRecommendation rec : recommendations) {
         // 检查该科室是否与病史相关
@@ -386,13 +430,13 @@ private void adjustByMedicalHistory(List<DepartmentRecommendation> recommendatio
  */
 private void adjustDoctorRankingByHistory(List<DoctorRecommendationWithSchedule> recommendations, 
                                           String medicalHistory) {
-    List<String> historyKeywords = nlpService.extractSymptomKeywords(medicalHistory);
+    List<String> historyKeywords = this.extractSymptomKeywords(medicalHistory);
     
     for (DoctorRecommendationWithSchedule rec : recommendations) {
         Doctor doctor = doctorRepository.findById(rec.getDoctorId()).orElse(null);
         if (doctor != null && doctor.getSpecialty() != null) {
             // 检查医生专长是否与病史相关
-            double historyMatch = nlpService.calculateSymptomMatch(historyKeywords, doctor.getSpecialty());
+            double historyMatch = this.calculateSymptomMatch(historyKeywords, doctor.getSpecialty());
             if (historyMatch > 0.3) {
                 rec.setScore(rec.getScore() * 1.15); // 提升15%
             }
